@@ -12,31 +12,45 @@ class Player:
         self.grounded = False
         self.prev_direction = "right"  # Track the last direction for sprite flipping
 
+
+
     def update(self, keys):
 
         # If direction keys are pressed, add acceleration to velocity each frame
         # TODO: make the keys customizable
         if keys[pygame.K_LEFT]:
             if self.prev_direction == "right":
-                self.velocity.x -= settings.PLAYER_FLIP_BOOST * settings.PLAYER_ACCELERATION
+            # If the velocity is lower than the max flip acceleration, flip the velocity normally
+                if self.velocity.x < settings.PLAYER_FLIP_MAX_VELOCITY:
+                    self.velocity.x = -self.velocity.x
+                else:
+                    # Otherwise, cap it to the max flip acceleration
+                    self.velocity.x = -settings.PLAYER_FLIP_MAX_VELOCITY
+                self.prev_direction = "left"
             else:
                 self.velocity.x -= settings.PLAYER_ACCELERATION
-            
-            self.prev_direction = "left"
-        
+
         if keys[pygame.K_RIGHT]:
-            if self.prev_direction == "right":
-                self.velocity.x += settings.PLAYER_FLIP_BOOST * settings.PLAYER_ACCELERATION
+            if self.prev_direction == "left":
+            # If the velocity is higher than the negative max flip acceleration, flip the velocity normally
+                if self.velocity.x > -settings.PLAYER_FLIP_MAX_VELOCITY:
+                    self.velocity.x = -self.velocity.x
+                else:
+                    # Otherwise, cap it to the max flip acceleration
+                    self.velocity.x = -settings.PLAYER_FLIP_MAX_VELOCITY
+                self.prev_direction = "right"
             else:
                 self.velocity.x += settings.PLAYER_ACCELERATION
 
-            self.prev_direction = "right"
-
+        # If jump key is pressed and player is grounded, do the jump. 
+        # We apply the base force here
         if keys[pygame.K_UP] and self.grounded:
-            # Jumping logic
             self.velocity.y -= settings.PLAYER_JUMP_FORCE
             self.grounded = False
-       
+
+        # If we let go of jump while going up, the velocity gets cut hard, but not fully
+        if not keys[pygame.K_UP] and self.velocity.y < 0:
+            self.velocity.y *= settings.PLAYER_JUMP_CUT_MULTIPLIER
 
         # If no direction keys are pressed, apply friction to slow down
         if not keys[pygame.K_LEFT] and not keys[pygame.K_RIGHT]:
@@ -62,6 +76,9 @@ class Player:
             self.velocity.y = 0
 
 
+        # Before the position, normalize the velocity vector to ensure consistent speed
+        if self.velocity.length() > 0:
+            self.velocity = self.velocity.normalize() * self.velocity.length()
 
         # Update position
         self.position += self.velocity
@@ -75,7 +92,12 @@ class Player:
             self.grounded = True
             self.position.y = settings.SCREEN_HEIGHT - settings.PLAYER_HEIGHT
 
-        if settings.DEBUG_MODE:
+
+
+        if not hasattr(self, "_debug_counter"):
+            self._debug_counter = 0
+        self._debug_counter += 1
+        if settings.DEBUG_MODE and self._debug_counter % 60 == 0:
             print(f"Player x velocity: {self.velocity.x}")
             print(f"Player y velocity: {self.velocity.y}")
             print(f"Player position: {self.position.x}, {self.position.y}")
@@ -92,7 +114,11 @@ class Player:
         # Adjust player's position relative to the camera
         draw_rect = self.hitbox.move(-camera_x, -camera_y)
         
-        if settings.DEBUG_MODE:
+        
+        if not hasattr(self, "_debug_counter_draw"):
+            self._debug_counter_draw = 0
+        self._debug_counter_draw += 1
+        if settings.DEBUG_MODE and self._debug_counter_draw % 60 == 0:
             print(f"Drawing player at: {draw_rect.x}, {draw_rect.y}\n")
         
         pygame.draw.rect(screen, self.color, draw_rect)
