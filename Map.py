@@ -7,11 +7,21 @@ class Map:
         # If a file location is provided, load the map from the file
         if file_location:
             with open(file_location, 'r') as f:
+                # Read the first line to get width and height
                 first_line = f.readline().strip()
+
+                # Parse width and height from the first line
                 self.width, self.height = map(int, first_line.split())
+                
+                # Init the map data
                 self.map_data = []
+
+                # Read the the rest to fill the map data
                 for _ in range(self.height):
+                    # Read a row and split into tiles. This is stored as an array of integers
                     row = f.readline().strip().split()
+                    
+                    # Take the int value of each tile and append to the map data. Map data is a 2D array
                     self.map_data.append([int(tile) for tile in row])
 
         # If no file location is provided, initialize an empty map
