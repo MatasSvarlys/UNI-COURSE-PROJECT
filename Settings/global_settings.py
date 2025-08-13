@@ -21,7 +21,8 @@ PLAYER_FLIP_MAX_VELOCITY = 2
 PLAYER_JUMP_CUT_MULTIPLIER = 0.5  
 
 # Tiles are square
-TILE_SIZE_IN_SCREEN = 64
+# This should not be changed lightly
+TILE_SIZE_RAW = 64
 
 # Camera settings
 CAMERA_MODE = False

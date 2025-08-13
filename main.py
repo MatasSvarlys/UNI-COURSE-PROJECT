@@ -1,9 +1,10 @@
 import pygame
 import sys
-import Camera
-import Map
-import Player
-import global_settings as settings
+from Objects.Player import Player
+from Objects.Camera import Camera
+from Objects.Map import Map
+from Settings import global_settings as settings
+from Settings import tile_settings, map_settings
 
 # Initialize Pygame
 pygame.init()
@@ -16,9 +17,9 @@ clock = pygame.time.Clock()
 running = True
 
 # Initialize player, camera, and map ONCE
-player = Player.Player(10, settings.SCREEN_HEIGHT - settings.PLAYER_HEIGHT - 1.5*settings.TILE_SIZE_IN_SCREEN)
-camera = Camera.Camera()
-map = Map.Map(file_location="map.txt")
+player = Player(10, settings.SCREEN_HEIGHT - settings.PLAYER_HEIGHT)
+camera = Camera()
+map = Map(file_location="map.txt")
 
 
 while running:

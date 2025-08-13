@@ -1,17 +1,28 @@
 import pygame
-import global_settings as settings
-import tile_settings
+from Settings import global_settings as settings
+from Settings import tile_settings
+from Settings import map_settings
 
 class Map:
     def __init__(self, file_location=None):
+
         # If a file location is provided, load the map from the file
         if file_location:
             with open(file_location, 'r') as f:
-                # Read the first line to get width and height
-                first_line = f.readline().strip()
+                
+                # ------------- [depricated] -------------
+                # Read the first line to get width and height 
+                # first_line = f.readline().strip()
 
                 # Parse width and height from the first line
-                self.width, self.height = map(int, first_line.split())
+                # self.width, self.height = map(int, first_line.split())
+                # ----------------------------------------
+
+
+                # For testing reasons, I'll set a constant map size in the map settings
+                self.width = map_settings.MAP_WIDTH
+                self.height = map_settings.MAP_HEIGHT
+
                 
                 # Init the map data
                 self.map_data = []
@@ -19,6 +30,7 @@ class Map:
                 # Read the the rest to fill the map data
                 for _ in range(self.height):
                     # Read a row and split into tiles. This is stored as an array of integers
+                    # The delimiter is a space, might want to change it later
                     row = f.readline().strip().split()
                     
                     # Take the int value of each tile and append to the map data. Map data is a 2D array
@@ -29,6 +41,7 @@ class Map:
             self.width = 0
             self.height = 0
             self.map_data = []
+
 
     def set_tile(self, x, y, value):
         if 0 <= x < self.width and 0 <= y < self.height:
@@ -46,16 +59,24 @@ class Map:
     def get_grid(self):
         return self.map_data
     
+    # Draw map with camera offset
     def draw(self, screen, camera):
-        # Draw map with camera offset
+
         camera_x, camera_y = camera.get_position()
+
         for y, row in enumerate(self.get_grid()):
             for x, tile in enumerate(row):
-                screen_x = x * settings.TILE_SIZE_IN_SCREEN - camera_x
-                screen_y = settings.SCREEN_HEIGHT - ((y + 1) * settings.TILE_SIZE_IN_SCREEN) - camera_y
+
+                # To match the way we itterate through the map, 
+                # we need to calculate the screen position of the tile
+                # starting from the top left corner of the screen
+                                
+                screen_x = x * tile_settings.TILE_SIZE - camera_x
+                screen_y = (y+1) * tile_settings.TILE_SIZE - camera_y
                 
-                # Only render visible tiles
-                if (-settings.TILE_SIZE_IN_SCREEN <= screen_x <= settings.SCREEN_WIDTH and 
-                    -settings.TILE_SIZE_IN_SCREEN <= screen_y <= settings.SCREEN_HEIGHT):
-                    rect = pygame.Rect(screen_x, screen_y, settings.TILE_SIZE_IN_SCREEN, settings.TILE_SIZE_IN_SCREEN)
-                    pygame.draw.rect(screen, tile_settings.TILE_TYPES[tile]["color"], rect)
+
+                # maybe it's better to draw 0 tiles too idk yet
+                if tile != 0:
+                    tile_rect = pygame.Rect(screen_x, screen_y - tile_settings.TILE_SIZE, tile_settings.TILE_SIZE, tile_settings.TILE_SIZE)
+                    color = tile_settings.TILE_TYPE_MAP.get(tile, {"color": (0, 0, 0)})["color"]
+                    pygame.draw.rect(screen, color, tile_rect)

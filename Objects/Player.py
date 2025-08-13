@@ -1,5 +1,5 @@
 import pygame
-import global_settings as settings
+from Settings import global_settings as settings
 
 vector = pygame.math.Vector2
 

@@ -1,6 +1,11 @@
-import global_settings as settings
+from Settings import global_settings as settings
+
 class Camera:
-    def __init__(self, display_x=settings.SCREEN_WIDTH, display_y=settings.SCREEN_HEIGHT, x=0, y=0):
+    def __init__(self, 
+                 display_x=settings.SCREEN_WIDTH, 
+                 display_y=settings.SCREEN_HEIGHT, 
+                 x=0, 
+                 y=0):
         self.display_x = display_x
         self.display_y = display_y
         self.x = x
@@ -17,4 +22,4 @@ class Camera:
         self.x = 0
         self.y = 0
 
-    # TODO: add a way to set the camera size in th visible screen
+    # TODO: add a way to chnage the camera size after initialization
