@@ -10,20 +10,6 @@ class Map:
         if file_location:
             with open(file_location, 'r') as f:
                 
-                # ------------- [depricated] -------------
-                # Read the first line to get width and height 
-                # first_line = f.readline().strip()
-
-                # Parse width and height from the first line
-                # self.width, self.height = map(int, first_line.split())
-                # ----------------------------------------
-
-
-                # For testing reasons, I'll set a constant map size in the map settings
-                self.width = map_settings.MAP_WIDTH
-                self.height = map_settings.MAP_HEIGHT
-
-                
                 # Init the map data
                 self.map_data = []
 
@@ -38,8 +24,6 @@ class Map:
 
         # If no file location is provided, initialize an empty map
         else:
-            self.width = 0
-            self.height = 0
             self.map_data = []
 
 
@@ -60,7 +44,7 @@ class Map:
         return self.map_data
     
     # Draw map with camera offset
-    def draw(self, screen, camera):
+    def draw(self, window, camera):
 
         camera_x, camera_y = camera.get_position()
 

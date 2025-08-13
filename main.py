@@ -10,13 +10,14 @@ from Settings import tile_settings, map_settings
 pygame.init()
 
 # Set up the screen
-screen = pygame.display.set_mode((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT))
+window = pygame.display.set_mode((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT))
 
 # Game loop
 clock = pygame.time.Clock()
 running = True
 
-# Initialize player, camera, and map ONCE
+# Initialize player, camera, and map
+#TODO: make it so 2 players can be initialized
 player = Player(10, settings.SCREEN_HEIGHT - settings.PLAYER_HEIGHT)
 camera = Camera()
 map = Map(file_location="map.txt")
@@ -51,17 +52,17 @@ while running:
             camera.move(0, -10)
 
     # Fill the background
-    screen.fill(settings.BACKGROUND_COLOR)
+    window.fill(settings.BACKGROUND_COLOR)
 
 
-    # Draw the map
-    map.draw(screen, camera)
+    # Map logic
+    map.draw(window, camera)
     
     
-    # Draw the player
+    # Player logic
 
     player.update(keys)
-    player.draw(screen, camera)
+    player.draw(window, camera)
   
     
     # Update the display
