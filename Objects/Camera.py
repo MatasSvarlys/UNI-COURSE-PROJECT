@@ -1,13 +1,7 @@
 from Settings import global_settings as settings
 
 class Camera:
-    def __init__(self, 
-                 display_size_x=settings.SCREEN_WIDTH, 
-                 display_size_y=settings.SCREEN_HEIGHT, 
-                 x=0, 
-                 y=0):
-        self.display_size_x = display_size_x
-        self.display_size_y = display_size_y
+    def __init__(self, x=0, y=0):
         self.x = x
         self.y = y
 
@@ -22,4 +16,4 @@ class Camera:
         self.x = 0
         self.y = 0
 
-    # TODO: add a way to chnage the camera size after initialization
+    # TODO: add a way to chnage the camera size for a minimap
