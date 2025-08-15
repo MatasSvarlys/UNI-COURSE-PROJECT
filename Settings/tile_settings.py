@@ -1,5 +1,5 @@
 # Tile size in pixels
-TILE_SIZE = 32
+TILE_SIZE = 20
 
 # Tile type definitions
 TILE_TYPE_MAP = {
