@@ -1,7 +1,7 @@
 
 # Screen
-SCREEN_WIDTH = 400
-SCREEN_HEIGHT = 300
+SCREEN_WIDTH = 600
+SCREEN_HEIGHT = 400
 
 # Color constants (TODO: make this to sprites down the line)
 BLACK = (0, 0, 0)
