@@ -38,6 +38,7 @@ while running:
     game_world.update(keys)
 
     # Set the camera position
+    # TODO: This is broken
     camera.follow_with_offset(game_world.player.hitbox, offset_x=0, offset_y=-settings.SCREEN_HEIGHT // 4)
     
     # Draw the game world
