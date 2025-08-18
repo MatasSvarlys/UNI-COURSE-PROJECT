@@ -63,111 +63,71 @@ class Player:
             print(f"Player coliding y: {self.coliding_y}\n")
 
     def handle_collisions(self, game_map: Map):
-        
-
-        # ========= Handle x collision =============
-
-        # Reset debug flags
-        self.coliding_x = False
-        
-        # If there is x velocity in either direction, check for collisions
-        if self.velocity.x != 0:
-            
-            # Take the current position as a vector point
-            start_pos = vector(self.hitbox.left, self.hitbox.top)
-            # Add the x velocity to move the point
-            end_pos = start_pos + vector(self.velocity.x, 0)
-            
-            # This might as well be a static value, because I doubt the game will reach those speeds,
-            # but lets be a little fancy and scale it with velocity
-            steps = int(abs(self.velocity.x))
-            
-            # Deciding between checking each rect for some amount of steps
-            # or each step check through every rect is meaningless, it's 
-            # multiplication so it doesn't matter 
-            for rect in game_map.collision_rects:
-                for i in range(1, steps + 1):
-            
-                    # We lerp between those two positions by a fraction 
-                    # of how many steps we defined to get an intermediate position
-                    interp_pos = start_pos.lerp(end_pos, i / steps)
-
-                    # Create the same size rect in the same place as you
-                    test_rect = self.hitbox.copy()
-                    # Then move it to the lerped position 
-                    test_rect.topleft = (interp_pos.x, interp_pos.y)
-            
-                    # Check if it colided with every rect in the map
-                    if test_rect.colliderect(rect):
-                        if self.velocity.x > 0:  # while moving right
-                            self.velocity.x = rect.left - self.hitbox.right
-                        elif self.velocity.x < 0:  # while moving left
-                            self.velocity.x = rect.right - self.hitbox.left
                 
-                    # For debugging
-                    self.coliding_x = True
-
-                    # This is for the steps, so we dont overcalculate into the block
-                    break
-    # =======================================
-
-        # Reset debug flags
-        self.coliding_y = False
+        # Take the current position as a vector point
+        start_pos = vector(self.hitbox.left, self.hitbox.top)
         
-        # If there is x velocity in either direction, check for collisions
-        if self.velocity.y != 0:
+        # Add the current velocity to move the point some distance
+        end_pos = start_pos + vector(self.velocity.x, self.velocity.y)
+        
             
-            # Take the current position as a vector point
-            start_pos = vector(self.hitbox.left, self.hitbox.top)
-            # Add the x velocity to move the point
-            end_pos = start_pos + vector(self.velocity.y, 0)
+        # This might as well be a static value, because I doubt the game will reach those speeds,
+        # but lets be a little fancy and scale it with velocity, the calculations are arbitrary tho
+        steps = int(abs(self.velocity.x)) + int(abs(self.velocity.y)) + 1
             
-            # This might as well be a static value, because I doubt the game will reach those speeds,
-            # but lets be a little fancy and scale it with velocity
-            steps = int(abs(self.velocity.y))
+        # We go through each of those steps 
+        for i in range(1, steps + 1):
             
-            # Deciding between checking each rect for some amount of steps
-            # or each step check through every rect is meaningless, it's 
-            # multiplication so it doesn't matter 
-            for rect in game_map.collision_rects:
-                for i in range(1, steps + 1):
+            # Lerp between those two positions by a fraction 
+            # of how many steps we defined to get an intermediate position
+            interp_pos = start_pos.lerp(end_pos, i / steps)
+            # Create the same size rect in the same place as you
+            test_rect = self.hitbox.copy()
+            # Then move it to the lerped position 
+            test_rect.topleft = (interp_pos.x, interp_pos.y)
             
-                    # We lerp between those two positions by a fraction 
-                    # of how many steps we defined to get an intermediate position
-                    interp_pos = start_pos.lerp(end_pos, i / steps)
+            
 
-                    # Create the same size rect in the same place as you
-                    test_rect = self.hitbox.copy()
-                    # Then move it to the lerped position 
-                    test_rect.topleft = (interp_pos.x, interp_pos.y)
-            
-                    # Check if it colided with every rect in the map
-                    if test_rect.colliderect(rect):
-                        if self.velocity.y > 0:  # falling
-                            self.velocity.y = rect.top - self.hitbox.bottom
-                            self.grounded = True
-                        elif self.velocity.y < 0:  # jumping
-                            self.velocity.y = rect.bottom - self.hitbox.top
+
+            # With the intermediate position we can run the collision checks
+            if not collided:
+                for rect in game_map.collision_rects:
                 
-                    # For debugging
-                    self.coliding_y = True
+                    if test_rect.colliderect(rect):
+                        collided = True
 
-                    # This is for the steps, so we dont overcalculate into the block
-                    break
-            
+                        
+                        
+                        # if self.velocity.y > 0:
+                        #     self.velocity.y = rect.top - self.hitbox.bottom
+                        #     self.grounded = True
+                        #     self.coliding_y = True
+                        # if self.velocity.y < 0:
+                        #     self.velocity.y = rect.bottom - self.hitbox.top
+                        #     self.coliding_y = True
+                        
+                        # if self.velocity.x > 0:
+                        #     self.velocity.x = 
+       
+
+
+                    
+                    
+                    
+                
+                    
 
     def handle_constraints_and_gravity(self):
 
         # Apply gravity to vertical velocity
-        if not self.grounded:
-            self.velocity.y += settings.PLAYER_GRAVITY
+        # if not self.grounded:
+        self.velocity.y += settings.PLAYER_GRAVITY
+
 
         # Clamp velocity to max speed
-        if self.velocity.x > settings.PLAYER_MAX_SPEED:
-            self.velocity.x = settings.PLAYER_MAX_SPEED
-        elif self.velocity.x < -settings.PLAYER_MAX_SPEED:
-            self.velocity.x = -settings.PLAYER_MAX_SPEED
-
+        self.velocity.x = max(-settings.PLAYER_MAX_SPEED, min(self.velocity.x, settings.PLAYER_MAX_SPEED))
+        self.velocity.y = max(-settings.PLAYER_MAX_FSPEED, min(self.velocity.y, settings.PLAYER_MAX_FSPEED))
+        
         # Trunc very small velocity values to zero to avoid floating point drift
         if abs(self.velocity.x) < 1e-6:
             self.velocity.x = 0
