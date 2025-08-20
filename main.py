@@ -39,7 +39,7 @@ while running:
 
     # Set the camera position
     # TODO: This is broken
-    camera.follow_with_offset(game_world.player.hitbox, offset_x=0, offset_y=-settings.SCREEN_HEIGHT // 4)
+    # camera.follow_with_offset(game_world.player.hitbox, offset_x=0, offset_y=-settings.SCREEN_HEIGHT // 4)
     
     # Draw the game world
     camera.draw_world(game_world, window)
