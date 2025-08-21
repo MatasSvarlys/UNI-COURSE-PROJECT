@@ -37,7 +37,7 @@ class Player:
         self.handle_player_movement(keys)
 
         # Handle max speed, gravity, velocity normalization and truncation
-        self.handle_constraints_and_gravity()
+        self.handle_constraints_gravity_and_friction()
 
         # The previous two changed the velocity, now we clamp it further if theres a wall in the way
         self.handle_collisions_and_update_position(game_map)
@@ -56,62 +56,116 @@ class Player:
             print(f"Player hitbox: {self.hitbox.x}, {self.hitbox.y}")
             print(f"Player grounded: {self.grounded}\n")
             print(f"Player coliding x: {self.coliding_x}")
-            print(f"Player coliding y: {self.coliding_y}\n")
+            print(f"Player coliding y: {self.grounded}\n")
 
 
     def handle_collisions_and_update_position(self, game_map: Map):
+        
         velocity_vec = self.velocity
         collision_rects = game_map.collision_rects
 
-        # --- Handle X axis ---
+        self.coliding_x = False
+        self.coliding_y = False
+
+
+        # ============== x collision ===============
+        # To save on calculations move the player hitbox directly
         self.hitbox.move_ip(velocity_vec.x, 0)
+
+        # TODO: check only some surrounding blocks, checking every block slows down the game a lot
         for rect in collision_rects:
+
+            # Check for overlap and directly set your hitbox outside of the block
             if self.hitbox.colliderect(rect):
-                if velocity_vec.x > 0:  # moving right
+                if velocity_vec.x > 0:  # right
                     self.hitbox.right = rect.left
-                elif velocity_vec.x < 0:  # moving left
+                elif velocity_vec.x < 0:  # left
                     self.hitbox.left = rect.right
+            
+                # Reset your velocity, because you hit a wall 
+                # and add debug flag 
                 self.velocity.x = 0
                 self.coliding_x = True
 
-        # --- Handle Y axis ---
+
+        # ============= Y collision ====================
+        # To save on calculations move the player hitbox directly
         self.hitbox.move_ip(0, velocity_vec.y)
+        
+        # Reset the check for grounded every frame, because if you're on the ground
+        # and gravity is applied, you will collide and ground again.
         self.grounded = False
+
+        # TODO: check only some surrounding blocks, checking every block slows down the game a lot
         for rect in collision_rects:
+
+            # y collisions 
             if self.hitbox.colliderect(rect):
-                if velocity_vec.y > 0:  # moving down
+                if velocity_vec.y > 0:  # down
                     self.hitbox.bottom = rect.top
                     self.grounded = True
-                elif velocity_vec.y < 0:  # moving up
+                elif velocity_vec.y < 0:  # up
                     self.hitbox.top = rect.bottom
+                
+                # Reset velocity if we land or hit our head.
+                # Could be improved to give some downward velocity when bumping against a block
                 self.velocity.y = 0
+                self.coliding_y = True
 
-        # Update position as vector (after rect is final)
-        self.position_as_vector = vector(self.hitbox.x, self.hitbox.y)
+        # ================================
 
-        print(self.position_as_vector)
-                
+        # Update position as vector (after hitbox is final)
+        self.position_as_vector = vector(self.hitbox.x, self.hitbox.y)        
                     
                     
-                
-                    
 
-    def handle_constraints_and_gravity(self):
-
-        # Apply gravity to vertical velocity
-        # if not self.grounded:
-        self.velocity.y += settings.PLAYER_GRAVITY
-
-
-        # Clamp velocity to max speed
-        self.velocity.x = max(-settings.PLAYER_MAX_SPEED, min(self.velocity.x, settings.PLAYER_MAX_SPEED))
-        self.velocity.y = max(-settings.PLAYER_MAX_FSPEED, min(self.velocity.y, settings.PLAYER_MAX_FSPEED))
+    def handle_constraints_gravity_and_friction(self):
         
-        # Trunc very small velocity values to zero to avoid floating point drift
-        if abs(self.velocity.x) < 1e-6:
-            self.velocity.x = 0
+        def approach_vel(curr, target=None, max=None, min=None):
+            
+            # If curr is out of provided bounds, slow it down 
+            # because 0 < SLOWDOWN_FACTOR < 1
+            if (max is not None and curr > max) or (min is not None and curr < min):
+                return curr * settings.SLOWDOWN_FACTOR     
+            else:
+                if target:
+                    return target
+                else:
+                    return curr 
+        # =========================
+
+        # Yes, this doesn't cap max jump speed
+        self.velocity.y = approach_vel(
+            self.velocity.y,
+            self.velocity.y + settings.PLAYER_GRAVITY,
+            settings.PLAYER_MAX_FSPEED
+        )
+
+        self.velocity.x = approach_vel(self.velocity.x, self.velocity.x*settings.PLAYER_FRICTION, settings.PLAYER_MAX_SPEED, -settings.PLAYER_MAX_SPEED)
+        
+        if abs(self.velocity.x) < 0.01:
+            self.velocity.x = approach_vel(self.velocity.x, 0)
+        
+
+
+
+        # ======== Legacy code ========
+        # # Apply gravity to vertical velocity
+        # # if not self.grounded:
+        # self.velocity.y += settings.PLAYER_GRAVITY
+
+
+        # # Clamp velocity to max speed
+        # self.velocity.x = max(-settings.PLAYER_MAX_SPEED, min(self.velocity.x, settings.PLAYER_MAX_SPEED))
+        # self.velocity.y = max(-settings.PLAYER_MAX_FSPEED, min(self.velocity.y, settings.PLAYER_MAX_FSPEED))
+        
+        # # Trunc very small velocity values to zero to avoid floating point drift
+        # if abs(self.velocity.x) < 1e-6:
+        #     self.velocity.x = 0
+        # ========================
 
         # Before the position, normalize the velocity vector to ensure consistent speed
+        
         if self.velocity.length() > 0:
             self.velocity = self.velocity.normalize() * self.velocity.length()
 
@@ -146,11 +200,6 @@ class Player:
                 self.prev_direction = "right"
             else:
                 self.velocity.x += settings.PLAYER_ACCELERATION
-
-        # If no direction keys are pressed, apply friction to slow down
-        if not keys[pygame.K_LEFT] and not keys[pygame.K_RIGHT]:
-            self.velocity.x *= settings.PLAYER_FRICTION
-
 
         # --- y-axis movement ---
 
