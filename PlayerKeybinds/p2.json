@@ -1,0 +1,5 @@
+{
+  "MOVE_LEFT": "K_LEFT",
+  "MOVE_RIGHT": "K_RIGHT",
+  "JUMP": "K_UP"
+}

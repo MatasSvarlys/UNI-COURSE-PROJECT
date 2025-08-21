@@ -47,8 +47,11 @@ class Camera:
                               draw_rect[0].width, draw_rect[0].height))
 
         # Draw the player
-        player_rect = game_world.player.hitbox.move(-self.x, -self.y)
-        pygame.draw.rect(self.surface, game_world.player.color, player_rect)
+        player_one_rect = game_world.playerOne.hitbox.move(-self.x, -self.y)
+        pygame.draw.rect(self.surface, game_world.playerOne.color, player_one_rect)
+
+        player_two_rect = game_world.playerTwo.hitbox.move(-self.x, -self.y)
+        pygame.draw.rect(self.surface, game_world.playerTwo.color, player_two_rect)
 
         # Draw the camera surface to the window
         scaled_canvas = pygame.transform.scale(self.surface, window.get_size())

@@ -1,3 +1,4 @@
+import json
 import pygame
 from Settings import global_settings as settings
 from Objects.Map import Map
@@ -14,10 +15,16 @@ class Player:
     grounded: bool
     prev_direction: str
 
-    def __init__(self, x, y, game_map):
+    def __init__(self, x, y, game_map, player_id):
         
         self.position_as_vector = vector(x, y)
         self.map = game_map
+        self.player_id = player_id
+
+        with open(f'./PlayerKeybinds/p{player_id}.json') as f:
+            key_bindings = json.load(f)
+        self.keymap = {action: getattr(pygame, code) for action, code in key_bindings.items()}
+
 
         self.hitbox = pygame.Rect(self.position_as_vector.x, self.position_as_vector.y, settings.PLAYER_WIDTH, settings.PLAYER_HEIGHT)
         
@@ -175,7 +182,7 @@ class Player:
 
         # If direction keys are pressed, add acceleration to velocity each frame
         # TODO: make the keys customizable
-        if keys[pygame.K_LEFT]:
+        if keys[self.keymap["MOVE_LEFT"]]:
             if self.prev_direction == "right":
                 # I wonder if this has a name 
             # If the velocity is lower than the max flip acceleration, flip the velocity normally
@@ -188,7 +195,7 @@ class Player:
             else:
                 self.velocity.x -= settings.PLAYER_ACCELERATION
 
-        if keys[pygame.K_RIGHT]:
+        if keys[self.keymap["MOVE_RIGHT"]]:
             if self.prev_direction == "left":
             # If the velocity is higher than the negative max flip acceleration, flip the velocity normally
                 if self.velocity.x > -settings.PLAYER_FLIP_MAX_VELOCITY:
@@ -204,12 +211,12 @@ class Player:
 
         # If jump key is pressed and player is grounded, do the jump. 
         # We apply the base force here
-        if keys[pygame.K_UP] and self.grounded:
+        if keys[self.keymap["JUMP"]] and self.grounded:
             self.velocity.y -= settings.PLAYER_JUMP_FORCE
             self.grounded = False
 
         # If we let go of jump while going up, the velocity gets cut hard, but not fully
-        if not keys[pygame.K_UP] and self.velocity.y < 0:
+        if not keys[self.keymap["JUMP"]] and self.velocity.y < 0:
             self.velocity.y *= settings.PLAYER_JUMP_CUT_MULTIPLIER
 
 
