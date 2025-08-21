@@ -9,14 +9,14 @@ from Settings import global_settings as settings
 pygame.init()
 
 # Set up the screen
-window = pygame.display.set_mode((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT))
+window = pygame.display.set_mode((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT))
 
 # Game loop
 clock = pygame.time.Clock()
 running = True
 
 # Initialize game world and the main camera to display everything
-camera = Camera()
+camera = Camera((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT))
 game_world = GameWorld()
 
 while running:
@@ -39,10 +39,12 @@ while running:
 
     # Set the camera position
     # TODO: This is broken
-    # camera.follow_with_offset(game_world.player.hitbox, offset_x=0, offset_y=-settings.SCREEN_HEIGHT // 4)
     
     # Draw the game world
-    camera.draw_world(game_world, window)
+    camera.follow_with_offset(game_world.player.hitbox, offset_x=0, offset_y=-settings.SCREEN_HEIGHT // 4)
+    camera.draw_world(game_world)
+
+    camera.render_to_window(window, game_world.player.hitbox.x // 2, game_world.player.hitbox.y // 2)
 
     # Update the display
     pygame.display.flip()

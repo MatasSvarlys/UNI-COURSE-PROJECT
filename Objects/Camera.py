@@ -4,7 +4,9 @@ import pygame
 from Settings import global_settings as settings
 
 class Camera:
-    def __init__(self, x=0, y=0):
+    def __init__(self, size, x=0, y=0):
+        self.surface = pygame.display.set_mode((size[0], size[1]))
+
         self.x = x
         self.y = y
 
@@ -29,16 +31,20 @@ class Camera:
         self.x = 0
         self.y = 0
 
-    def draw_world(self, game_world, window):
+    def draw_world(self, game_world):
         # Draw the game world with the camera offset
         for draw_rect in game_world.game_map.draw_rects:
+            
             # Adjust the rect position based on the camera position
-            pygame.draw.rect(window, draw_rect[1], 
+            # TODO: update the way I store draw_rects so that I can just pass a rect to draw
+            pygame.draw.rect(self.surface, draw_rect[1], 
                              (draw_rect[0].x, draw_rect[0].y, 
                               draw_rect[0].width, draw_rect[0].height))
 
         # Draw the player
         player_rect = game_world.player.hitbox
-        pygame.draw.rect(window, game_world.player.color, player_rect)
+        pygame.draw.rect(self.surface, game_world.player.color, player_rect)
 
-    # TODO: add a way to chnage the camera size for a minimap
+    def render_to_window(self, window, window_x=0, window_y=0):
+        window.blit(self.surface, (window_x, window_y))
+    # TODO: add a way to chage the camera size for a minimap
