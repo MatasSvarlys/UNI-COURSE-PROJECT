@@ -32,7 +32,7 @@ class Player:
         
         self.velocity = vector(0, 0)
         self.grounded = False
-        self.prev_direction = "right"  # Track the last direction for sprite flipping
+        self.prev_direction = "right"  # Track the last direction for sprite flipping and turning around while moving
 
         self.coliding_y = False
         self.coliding_x = False
@@ -57,13 +57,15 @@ class Player:
         self._debug_counter += 1
 
         if settings.DEBUG_MODE and self._debug_counter % 60 == 0:
-            print(f"Player x velocity: {self.velocity.x}")
-            print(f"Player y velocity: {self.velocity.y}")
-            print(f"Player position: {self.position_as_vector.x}, {self.position_as_vector.y}")
-            print(f"Player hitbox: {self.hitbox.x}, {self.hitbox.y}")
-            print(f"Player grounded: {self.grounded}\n")
-            print(f"Player coliding x: {self.coliding_x}")
-            print(f"Player coliding y: {self.grounded}\n")
+            print(f"Player {self.player_id} x velocity: {self.velocity.x}")
+            print(f"Player {self.player_id} y velocity: {self.velocity.y}")
+            print(f"Player {self.player_id} position: {self.position_as_vector.x}, {self.position_as_vector.y}")
+            print(f"Player {self.player_id} hitbox: {self.hitbox.x}, {self.hitbox.y}")
+            print(f"Player {self.player_id} grounded: {self.grounded}\n")
+            # I think due to the way collisions are handled, one frame I will be colliding and the next I'm forced to not
+            # And that is why this flips between True and False kinda randomly 
+            print(f"Player {self.player_id} coliding x: {self.coliding_x}")
+            print(f"Player {self.player_id} coliding y: {self.grounded}\n")
 
 
     def handle_collisions_and_update_position(self, game_map: Map):

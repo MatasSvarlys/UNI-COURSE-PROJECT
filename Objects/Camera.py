@@ -33,6 +33,26 @@ class Camera:
         self.x = 0
         self.y = 0
 
+    def mark_seeker(self, seeker):
+        seeker_rect = seeker.hitbox
+
+        # Position of arrow tip (centered above seeker)
+        tip_x = seeker_rect.centerx
+        tip_y = seeker_rect.top - 10  # 10 px above seeker
+
+        # Width and height of arrow
+        arrow_width = 20
+        arrow_height = 10
+
+        # Triangle points (downward pointing)
+        points = [
+            (tip_x - arrow_width // 2, tip_y),             # left corner
+            (tip_x + arrow_width // 2, tip_y),             # right corner
+            (tip_x, tip_y + arrow_height)                  # bottom (points down)
+        ]
+
+        pygame.draw.polygon(surface, (255, 255, 0), points)  # yellow arrow
+
     def draw_world(self, game_world, window):
         
         self.surface.fill((0, 0, 0))

@@ -35,7 +35,7 @@ while running:
     window.fill(settings.BACKGROUND_COLOR)
 
     # Update everything in the game world
-    game_world.update(keys)
+    game_world.update(keys, camera)
 
     # Set the camera position
     camera.follow_with_offset(game_world.playerOne.hitbox, offset_x=0, offset_y=-settings.SCREEN_HEIGHT // 4)
