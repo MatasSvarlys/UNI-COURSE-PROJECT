@@ -42,9 +42,9 @@ while running:
     
     # Draw the game world
     camera.follow_with_offset(game_world.player.hitbox, offset_x=0, offset_y=-settings.SCREEN_HEIGHT // 4)
-    camera.draw_world(game_world)
+    camera.draw_world(game_world, window)
 
-    camera.render_to_window(window, game_world.player.hitbox.x // 2, game_world.player.hitbox.y // 2)
+    # camera.render_to_window(window, game_world.player.hitbox.x // 2, game_world.player.hitbox.y // 2)
 
     # Update the display
     pygame.display.flip()

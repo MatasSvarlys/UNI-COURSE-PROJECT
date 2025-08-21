@@ -1,9 +1,10 @@
 
 # Screen
-SCREEN_WIDTH = 300
-SCREEN_HEIGHT = 200
-WINDOW_WIDTH = 600
-WINDOW_HEIGHT = 400
+#TODO: make screen size non-constant
+SCREEN_WIDTH = 600
+SCREEN_HEIGHT = 400
+WINDOW_WIDTH = 1200
+WINDOW_HEIGHT = 800
 
 # Color constants (TODO: make this to sprites down the line)
 BLACK = (0, 0, 0)
