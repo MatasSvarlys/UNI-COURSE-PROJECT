@@ -134,20 +134,21 @@ class Player:
                     return curr 
         # =========================
 
-        # Yes, this doesn't cap max jump speed
-        self.velocity.y = approach_vel(
-            self.velocity.y,
-            self.velocity.y + settings.PLAYER_GRAVITY,
-            settings.PLAYER_MAX_FSPEED
-        )
+
+        # IDK why, but approach_vel doesn't work for gravity
+        self.velocity.y += settings.PLAYER_GRAVITY
+        if self.velocity.y > settings.PLAYER_MAX_FSPEED:
+            self.velocity.y = settings.PLAYER_MAX_FSPEED
+
 
         self.velocity.x = approach_vel(self.velocity.x, self.velocity.x*settings.PLAYER_FRICTION, settings.PLAYER_MAX_SPEED, -settings.PLAYER_MAX_SPEED)
         
         if abs(self.velocity.x) < 0.01:
             self.velocity.x = approach_vel(self.velocity.x, 0)
         
-
-
+        # most likely wrong here, but idk how   
+        if self.velocity.length() > settings.PLAYER_MAX_SPEED:
+            self.velocity = self.velocity.normalize() * settings.PLAYER_MAX_SPEED
 
         # ======== Legacy code ========
         # # Apply gravity to vertical velocity
@@ -166,8 +167,6 @@ class Player:
 
         # Before the position, normalize the velocity vector to ensure consistent speed
         
-        if self.velocity.length() > 0:
-            self.velocity = self.velocity.normalize() * self.velocity.length()
 
 
     def handle_player_movement(self, keys):
