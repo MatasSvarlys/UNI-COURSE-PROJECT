@@ -24,6 +24,8 @@ class GameWorld:
         
         now = pygame.time.get_ticks()
         
+        self.camera.mark_seeker(self.seeker)
+        
         # Update the players
         for player in self.players:
             player.update(keys, self.game_map)
@@ -42,10 +44,6 @@ class GameWorld:
                 self.seeker.color = (255, 0, 0)
                 self.seeker = player
 
-
-
-
-                self.camera.mark_seeker(self.surface)
                 
                 # Reset cooldown timer
                 self.last_collision_time = now

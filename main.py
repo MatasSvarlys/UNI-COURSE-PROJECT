@@ -17,7 +17,7 @@ running = True
 
 # Initialize game world and the main camera to display everything
 camera = Camera((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT))
-game_world = GameWorld()
+game_world = GameWorld(camera)
 
 while running:
     # Event handling
@@ -32,10 +32,12 @@ while running:
     
 
     # Fill the background
-    window.fill(settings.BACKGROUND_COLOR)
+    # window.fill(settings.BACKGROUND_COLOR)
+
+    # camera.reset_surface()
 
     # Update everything in the game world
-    game_world.update(keys, camera)
+    game_world.update(keys)
 
     # Set the camera position
     camera.follow_with_offset(game_world.playerOne.hitbox, offset_x=0, offset_y=-settings.SCREEN_HEIGHT // 4)
