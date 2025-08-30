@@ -48,7 +48,6 @@ class Camera:
         arrow_width = 20
         arrow_height = 10
 
-        # TODO: make a function to translate world coordinates to screen coordinates
         points = [
             (tip_x - arrow_width // 2 - self.x, tip_y - self.y), # left corner
             (tip_x + arrow_width // 2 - self.x, tip_y - self.y), # right corner
@@ -58,12 +57,10 @@ class Camera:
         pygame.draw.polygon(self.cosmetic_surface, (255, 255, 0), points)  # yellow
 
     def reset_surface(self, surface):
-        # surface.fill((0, 0, 0))
         surface.fill((0, 0, 0, 0))
 
     def draw_world(self, game_world, window):
-        self.reset_surface(self.background_surface)
-        self.reset_surface(self.player_surface)
+
         
         # Draw the game world with the camera offset
         for draw_rect in game_world.game_map.draw_rects:
@@ -91,4 +88,8 @@ class Camera:
         # Scale the merged surface and output it onto the window 
         window.blit(pygame.transform.scale(merged_surface, window.get_size()), (0, 0))
 
+        self.reset_surface(self.background_surface)
+        self.reset_surface(self.player_surface)
+        self.reset_surface(self.cosmetic_surface)
     # TODO: add a way to chage the camera size for a minimap
+    # TODO: make a function to translate world coordinates to screen coordinates
