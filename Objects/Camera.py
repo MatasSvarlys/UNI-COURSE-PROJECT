@@ -23,6 +23,11 @@ class Camera:
     def follow(self, target: Rect) -> None:
         self.x = target.x - settings.SCREEN_WIDTH // 2
         self.y = target.y - settings.SCREEN_HEIGHT // 2
+
+    def follow_position(self, x, y) -> None:
+        self.x = x
+        self.y = y
+        
     # ====================================
 
     def follow_with_offset(self, target: Rect, offset_x=0, offset_y=0) -> None:
@@ -30,6 +35,11 @@ class Camera:
         # TODO: add clamping to the size of the map
         self.x = target.x - settings.SCREEN_WIDTH // 2 + offset_x
         self.y = target.y - settings.SCREEN_HEIGHT // 2 + offset_y
+
+    def follow_between_two_players(self, rect1: Rect, rect2: Rect) -> None:
+        mid_x = (rect1.centerx + rect2.centerx) // 2
+        mid_y = (rect1.centery + rect2.centery) // 2
+        self.follow_position(mid_x, mid_y)
 
     def get_position(self):
         return self.x, self.y
