@@ -1,0 +1,63 @@
+@startuml "Object relation"
+
+object "Main" as main{
+    update_func(gameWorld, keyInputs)-
+    draw_func(gameWorld)-
+---
+    gameWorld = GameWorld
+    keyInputs = keyEvents
+}
+
+object "Game World" as gw{
+    update_func(players, map, keyInputs)+
+    draw_func(surfaces)+
+---
+    surfaces = List<Surface>
+    players = Player[2]
+    map = Map
+    keyInputs = keyEvents
+}
+
+object "Camera" as cam{
+    follow_mid_point(p1, p2)+
+    clamp_to_map_size(map)+
+    draw_surfaces(surfaces)+
+---
+    position = Vector2d<float>
+    viewSize = Vector2d<float>
+}
+
+object "Player" as p{
+    update_func(keyInputs, collisionRects)+
+    draw_to_surface(surface)+
+    key_input_to_movement_vector(key_input)-
+    handle_constraints_gravity_and_friction()-
+    handle_collisions(collisionRects)-
+---
+    position = Vector2d<float>
+    isSeeker = Bool
+}
+
+object "Map" as map{
+    draw_to_surface(surface)+
+    update_func()+
+---
+    collisionRects = List<Rect>
+    worldSize = Vector2d<float>
+}
+
+object "RL agent" as rla{
+    step()+
+    
+---
+    environment = gameWorld
+    player = Player
+}
+
+main *-- gw
+gw *-- rla
+gw *-- cam
+gw *-- map
+gw *-- "2" p
+
+@enduml

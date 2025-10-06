@@ -1,4 +1,5 @@
 import pygame
+import random
 from Objects.Map import Map
 from Objects.Player import Player
 from Settings import global_settings as settings
@@ -15,20 +16,22 @@ class GameWorld:
         # TODO: make this a setting
         self.collision_cooldown = 2000
         
-        #TODO: make this random
-        self.seeker = self.playerOne
-        
         self.players = [self.playerOne, self.playerTwo]
+        self.seeker = self.players[random.randint(0,1)]
+        
 
     def update(self, keys):
         
         now = pygame.time.get_ticks()
         
         self.camera.mark_seeker(self.seeker)
-        
+
         # Update the players
         for player in self.players:
             player.update(keys, self.game_map)
+
+            player.color = (0, 255, 0)
+            self.seeker.color = (255, 0, 0)
 
             if (
                 self.seeker.hitbox.colliderect(player.hitbox)
@@ -40,11 +43,8 @@ class GameWorld:
 
                 
                 # Swap seeker
-                player.color = (0, 255, 0)
-                self.seeker.color = (255, 0, 0)
                 self.seeker = player
-
-                
+                                
                 # Reset cooldown timer
                 self.last_collision_time = now
 
