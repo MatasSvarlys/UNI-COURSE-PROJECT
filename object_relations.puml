@@ -1,16 +1,16 @@
 @startuml "Object relation"
 
 object "Main" as main{
-    update_func(gameWorld, keyInputs)-
-    draw_func(gameWorld)-
+    void update(gameWorld, keyInputs)-
+    void draw(gameWorld)-
 ---
     gameWorld = GameWorld
     keyInputs = keyEvents
 }
 
 object "Game World" as gw{
-    update_func(players, map, keyInputs)+
-    draw_func(surfaces)+
+    void update(players, map, keyInputs)+
+    void draw(surfaces)+
 ---
     surfaces = List<Surface>
     players = Player[2]
@@ -19,28 +19,29 @@ object "Game World" as gw{
 }
 
 object "Camera" as cam{
-    follow_mid_point(p1, p2)+
-    clamp_to_map_size(map)+
-    draw_surfaces(surfaces)+
+    void follow_mid_point(p1, p2)+
+    void clamp_to_map_size(map)+
+    void draw_surfaces(surfaces)+
 ---
     position = Vector2d<float>
     viewSize = Vector2d<float>
 }
 
 object "Player" as p{
-    update_func(keyInputs, collisionRects)+
-    draw_to_surface(surface)+
-    key_input_to_movement_vector(key_input)-
-    handle_constraints_gravity_and_friction()-
-    handle_collisions(collisionRects)-
+    void update(keyInputs, collisionRects)+
+    void draw_to_surface(surface)+
+    Vector2d<float> key_input_to_movement_vector(key_input)-
+    Vector2d<float> handle_constraints_gravity_and_friction(movementVector)-
+    Vector2d<float> handle_collisions(collisionRects, movementVector)-
 ---
     position = Vector2d<float>
+    movementVector = Vector2d<float>
     isSeeker = Bool
 }
 
 object "Map" as map{
     draw_to_surface(surface)+
-    update_func()+
+    update()+
 ---
     collisionRects = List<Rect>
     worldSize = Vector2d<float>
@@ -51,6 +52,8 @@ object "RL agent" as rla{
     
 ---
     environment = gameWorld
+    actionSpace = ["move left", "move right", "jump"]
+    DQN = DQN
     player = Player
 }
 
