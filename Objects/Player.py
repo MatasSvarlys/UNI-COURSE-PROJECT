@@ -8,18 +8,19 @@ vector = pygame.math.Vector2
 
 class Player:
     # Public variables
-    position_as_vector: vector
+    position: vector
     hitbox: pygame.Rect
     color: tuple
-    velocity: vector
+    movementVector: vector
     grounded: bool
     prev_direction: str
+    isSeeker: bool
 
-    def __init__(self, x, y, game_map, player_id):
+    def __init__(self, x, y, player_id, isSeeker=False):
         
-        self.position_as_vector = vector(x, y)
-        self.map = game_map
+        self.position = vector(x, y)
         self.player_id = player_id
+        self.isSeeker = isSeeker
 
         with open(f'./PlayerKeybinds/p{player_id}.json') as f:
             key_bindings = json.load(f)
@@ -30,7 +31,7 @@ class Player:
         
         self.color = settings.PLAYER_COLOR
         
-        self.velocity = vector(0, 0)
+        self.movementVector = vector(0, 0)
         self.grounded = False
         self.prev_direction = "right"  # Track the last direction for sprite flipping and turning around while moving
 
@@ -38,17 +39,19 @@ class Player:
         self.coliding_x = False
 
     # Update the player state
-    def update(self, keys, game_map: Map):
+    def update(self, keyInputs, collisionRects):
 
         # Update player velocity from wasd/similar inputs
-        self.handle_player_movement(keys)
+        input_vector = self.key_input_to_movement_vector(keyInputs)
 
-        # Handle max speed, gravity, velocity normalization and truncation
-        self.handle_constraints_gravity_and_friction()
+        # Apply gravity and handle max speed constraints 
+        constrained_vector = self.handle_constraints_gravity_and_friction(input_vector)
 
         # The previous two changed the velocity, now we clamp it further if theres a wall in the way
-        self.handle_collisions_and_update_position(game_map)
+        final_vector = self.handle_collisions(collisionRects, constrained_vector)
 
+        # Update position with final movement vector
+        self.update_position(final_vector)
 
         # This is the most literal way to do debiging every 60 frames
         # I probably should update this to do seconds instead
@@ -67,68 +70,71 @@ class Player:
             print(f"Player {self.player_id} coliding x: {self.coliding_x}")
             print(f"Player {self.player_id} coliding y: {self.grounded}\n")
 
+    # for readability
+    def update_position(self, movementVector):
+        self.hitbox.move_ip(movementVector.x, movementVector.y)
 
-    def handle_collisions_and_update_position(self, game_map: Map):
+    def handle_collisions(self, collisionRects, movementVector):
         
-        velocity_vec = self.velocity
-        collision_rects = game_map.collision_rects
-
         self.coliding_x = False
         self.coliding_y = False
 
 
         # ============== x collision ===============
-        # To save on calculations move the player hitbox directly
-        self.hitbox.move_ip(velocity_vec.x, 0)
+        # get the position where the player would be if it moved
 
-        # TODO: check only some surrounding blocks, checking every block slows down the game a lot
-        for rect in collision_rects:
+        nextPos = self.hitbox.move(movementVector.x, 0)
+
+        # TODO: check only some surrounding blocks, checking every block slows down the game
+        for rect in collisionRects:
 
             # Check for overlap and directly set your hitbox outside of the block
-            if self.hitbox.colliderect(rect):
-                if velocity_vec.x > 0:  # right
-                    self.hitbox.right = rect.left
-                elif velocity_vec.x < 0:  # left
-                    self.hitbox.left = rect.right
+            if nextPos.colliderect(rect):
+                if movementVector.x > 0:  # right
+                    # Calculate the distance to move so the hitbox is exactly next to the rect
+                    movementVector.x = rect.left - self.hitbox.right
+                elif movementVector.x < 0:  # left
+                    movementVector.x = rect.right - self.hitbox.left
             
                 # Reset your velocity, because you hit a wall 
                 # and add debug flag 
-                self.velocity.x = 0
+                self.movementVector.x = 0
                 self.coliding_x = True
 
+        # ================================
 
         # ============= Y collision ====================
         # To save on calculations move the player hitbox directly
-        self.hitbox.move_ip(0, velocity_vec.y)
+        self.hitbox.move(0, movementVector.y)
         
         # Reset the check for grounded every frame, because if you're on the ground
         # and gravity is applied, you will collide and ground again.
         self.grounded = False
 
         # TODO: check only some surrounding blocks, checking every block slows down the game a lot
-        for rect in collision_rects:
+        for rect in collisionRects:
 
-            # y collisions 
             if self.hitbox.colliderect(rect):
-                if velocity_vec.y > 0:  # down
-                    self.hitbox.bottom = rect.top
+                if movementVector.y > 0:  # down
+                    movementVector.y = rect.top - self.hitbox.bottom
                     self.grounded = True
-                elif velocity_vec.y < 0:  # up
-                    self.hitbox.top = rect.bottom
+                elif movementVector.y < 0:  # up
+                    movementVector.y = rect.bottom - self.hitbox.top
                 
                 # Reset velocity if we land or hit our head.
                 # Could be improved to give some downward velocity when bumping against a block
-                self.velocity.y = 0
+                self.movementVector.y = 0
                 self.coliding_y = True
 
         # ================================
 
-        # Update position as vector (after hitbox is final)
-        self.position_as_vector = vector(self.hitbox.x, self.hitbox.y)        
+        return movementVector
                     
                     
 
-    def handle_constraints_gravity_and_friction(self):
+    def handle_constraints_gravity_and_friction(self, movementVector):
+        
+        self.movementVector += movementVector
         
         def approach_vel(curr, target=None, max=None, min=None):
             
@@ -145,100 +151,72 @@ class Player:
 
 
         # IDK why, but approach_vel doesn't work for gravity
-        self.velocity.y += settings.PLAYER_GRAVITY
-        if self.velocity.y > settings.PLAYER_MAX_FSPEED:
-            self.velocity.y = settings.PLAYER_MAX_FSPEED
+        self.movementVector.y += settings.PLAYER_GRAVITY
+        if self.movementVector.y > settings.PLAYER_MAX_FSPEED:
+            self.movementVector.y = settings.PLAYER_MAX_FSPEED
 
-
-        self.velocity.x = approach_vel(self.velocity.x, self.velocity.x*settings.PLAYER_FRICTION, settings.PLAYER_MAX_SPEED, -settings.PLAYER_MAX_SPEED)
+        # apply friction and stay within max speed
+        self.movementVector.x = approach_vel(
+            self.movementVector.x, 
+            self.movementVector.x*settings.PLAYER_FRICTION, 
+            settings.PLAYER_MAX_SPEED, 
+            -settings.PLAYER_MAX_SPEED
+        )
         
-        if abs(self.velocity.x) < 0.01:
-            self.velocity.x = approach_vel(self.velocity.x, 0)
+        if abs(self.movementVector.x) < 0.01:
+            self.movementVector.x = approach_vel(self.movementVector.x, 0)
         
-        # most likely wrong here, but idk how   
-        if self.velocity.length() > settings.PLAYER_MAX_SPEED:
-            self.velocity = self.velocity.normalize() * settings.PLAYER_MAX_SPEED
+        # if the length of the movement vector still exeeds max speed normalize it to max speed  
+        # yes it does make the approach_vel to max speed obsolete
+        if self.movementVector.length() > settings.PLAYER_MAX_SPEED:
+            self.movementVector = self.movementVector.normalize() * settings.PLAYER_MAX_SPEED
 
-        # ======== Legacy code ========
-        # # Apply gravity to vertical velocity
-        # # if not self.grounded:
-        # self.velocity.y += settings.PLAYER_GRAVITY
+        return self.movementVector
 
 
-        # # Clamp velocity to max speed
-        # self.velocity.x = max(-settings.PLAYER_MAX_SPEED, min(self.velocity.x, settings.PLAYER_MAX_SPEED))
-        # self.velocity.y = max(-settings.PLAYER_MAX_FSPEED, min(self.velocity.y, settings.PLAYER_MAX_FSPEED))
-        
-        # # Trunc very small velocity values to zero to avoid floating point drift
-        # if abs(self.velocity.x) < 1e-6:
-        #     self.velocity.x = 0
-        # ========================
-
-        # Before the position, normalize the velocity vector to ensure consistent speed
-        
-
-
-    def handle_player_movement(self, keys):
+    def key_input_to_movement_vector(self, key_inputs):
+        # this is the theoretical movement vector for next frame, it will be processed later
+        movementVector = vector(0, 0)
 
         # --- x-axis movement ---
 
         # If direction keys are pressed, add acceleration to velocity each frame
-        # TODO: make the keys customizable
-        if keys[self.keymap["MOVE_LEFT"]]:
+        if key_inputs[self.keymap["MOVE_LEFT"]]:
             if self.prev_direction == "right":
                 # I wonder if this has a name 
-            # If the velocity is lower than the max flip acceleration, flip the velocity normally
-                if self.velocity.x < settings.PLAYER_FLIP_MAX_VELOCITY:
-                    self.velocity.x = -self.velocity.x
+                # If the velocity is lower than the max flip acceleration, flip the velocity normally
+                if self.movementVector.x < settings.PLAYER_FLIP_MAX_VELOCITY:
+                    movementVector.x = -self.movementVector.x
                 else:
                     # Otherwise, cap it to the max flip acceleration
-                    self.velocity.x = -settings.PLAYER_FLIP_MAX_VELOCITY
+                    movementVector.x = -settings.PLAYER_FLIP_MAX_VELOCITY
                 self.prev_direction = "left"
             else:
-                self.velocity.x -= settings.PLAYER_ACCELERATION
+                movementVector.x -= settings.PLAYER_ACCELERATION
 
-        if keys[self.keymap["MOVE_RIGHT"]]:
+        if key_inputs[self.keymap["MOVE_RIGHT"]]:
             if self.prev_direction == "left":
             # If the velocity is higher than the negative max flip acceleration, flip the velocity normally
-                if self.velocity.x > -settings.PLAYER_FLIP_MAX_VELOCITY:
-                    self.velocity.x = -self.velocity.x
+                if self.movementVector.x > -settings.PLAYER_FLIP_MAX_VELOCITY:
+                    movementVector.x = -self.movementVector.x
                 else:
                     # Otherwise, cap it to the max flip acceleration
-                    self.velocity.x = -settings.PLAYER_FLIP_MAX_VELOCITY
+                    movementVector.x = -settings.PLAYER_FLIP_MAX_VELOCITY
                 self.prev_direction = "right"
             else:
-                self.velocity.x += settings.PLAYER_ACCELERATION
+                movementVector.x += settings.PLAYER_ACCELERATION
+
 
         # --- y-axis movement ---
 
         # If jump key is pressed and player is grounded, do the jump. 
         # We apply the base force here
-        if keys[self.keymap["JUMP"]] and self.grounded:
-            self.velocity.y -= settings.PLAYER_JUMP_FORCE
+        if key_inputs[self.keymap["JUMP"]] and self.grounded:
+            movementVector.y -= settings.PLAYER_JUMP_FORCE
             self.grounded = False
 
         # If we let go of jump while going up, the velocity gets cut hard, but not fully
-        if not keys[self.keymap["JUMP"]] and self.velocity.y < 0:
-            self.velocity.y *= settings.PLAYER_JUMP_CUT_MULTIPLIER
+        if not key_inputs[self.keymap["JUMP"]] and self.velocity.y < 0:
+            movementVector.y *= settings.PLAYER_JUMP_CUT_MULTIPLIER
 
-
-
-
-
-
-
-    # =========== Legacy code ===========
-    # def draw(self, screen, camera):
-    #     camera_x, camera_y = camera.get_position()
-    #     # Adjust player's position relative to the camera
-    #     draw_rect = self.hitbox.move(-camera_x, -camera_y)
-        
-        
-    #     if not hasattr(self, "_debug_counter_draw"):
-    #         self._debug_counter_draw = 0
-    #     self._debug_counter_draw += 1
-    #     if settings.DEBUG_MODE and self._debug_counter_draw % 60 == 0:
-    #         print(f"Drawing player at: {draw_rect.x}, {draw_rect.y}\n")
-        
-    #     pygame.draw.rect(screen, self.color, draw_rect)
-    # ====================================
+        return movementVector
