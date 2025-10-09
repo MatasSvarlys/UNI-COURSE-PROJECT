@@ -27,7 +27,7 @@ class Player:
         self.keymap = {action: getattr(pygame, code) for action, code in key_bindings.items()}
 
 
-        self.hitbox = pygame.Rect(self.position_as_vector.x, self.position_as_vector.y, settings.PLAYER_WIDTH, settings.PLAYER_HEIGHT)
+        self.hitbox = pygame.Rect(self.position.x, self.position.y, settings.PLAYER_WIDTH, settings.PLAYER_HEIGHT)
         
         self.color = settings.PLAYER_COLOR
         
@@ -221,5 +221,10 @@ class Player:
 
         return movementVector
     
-    def draw_to_surface(self, surface):
-        pygame.draw.rect(surface, self.color, self.hitbox)
+    def draw_to_surface(self, surface): 
+        if self.isSeeker:
+            pygame.draw.rect(surface, (255, 0, 0), self.hitbox)
+        else:
+            pygame.draw.rect(surface, self.color, self.hitbox)
+        
+        return surface

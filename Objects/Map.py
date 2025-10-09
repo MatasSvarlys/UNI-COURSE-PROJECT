@@ -61,3 +61,5 @@ class Map:
                 tile[1], # color
                 tile[0] # rect
                 )
+            
+        return surface

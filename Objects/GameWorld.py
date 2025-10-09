@@ -1,41 +1,40 @@
 import pygame
 import random
+from Objects.Camera import Camera
 from Objects.Map import Map
 from Objects.Player import Player
 from Settings import global_settings as settings
 
 class GameWorld:
-    def __init__(self, camera):
-        #TODO: make it so 2 players can be initialized
-        self.game_map = Map(file_location="map.txt")
-        self.playerOne = Player(30, 40, self.game_map, 1)
-        self.playerTwo = Player(90, 30, self.game_map, 2)
-        self.camera = camera
+    def __init__(self):
 
+        self.gameMap = Map(file_location="map.txt")
+        self.playerOne = Player(30, 40, 1, True)
+        self.playerTwo = Player(90, 30, 2)
+        self.players = [self.playerOne, self.playerTwo]
+        self.camera = Camera()
+
+
+        self.baseSurface = pygame.Surface((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT), pygame.SRCALPHA)
+
+        self.surfaces = []
+
+        # for seeker collisions
         self.last_collision_time = 0
         # TODO: make this a setting
         self.collision_cooldown = 2000
         
-        self.players = [self.playerOne, self.playerTwo]
-        self.seeker = self.players[random.randint(0,1)]
-        
-
     def update(self, keys):
         
         now = pygame.time.get_ticks()
         
-        self.camera.mark_seeker(self.seeker)
-
         # Update the players
         for player in self.players:
-            player.update(keys, self.game_map)
-
-            player.color = (0, 255, 0)
-            self.seeker.color = (255, 0, 0)
+            player.update(keys, self.game_map.collision_rects)
 
             if (
-                self.seeker.hitbox.colliderect(player.hitbox)
-                and player != self.seeker
+                self.players[0].hitbox.colliderect(self.players[1].hitbox)
+                and (self.players[0].isSeeker or self.players[1].isSeeker)
                 and now - self.last_collision_time >= self.collision_cooldown
             ):
                 if settings.DEBUG_MODE:
@@ -43,13 +42,24 @@ class GameWorld:
 
                 
                 # Swap seeker
-                self.seeker = player
+                self.players[0].isSeeker = not self.players[0].isSeeker
+                self.players[1].isSeeker = not self.players[1].isSeeker
                                 
                 # Reset cooldown timer
                 self.last_collision_time = now
 
-
-            
-
         # When map will have more logic, it will be updated here
         # self.map.update()
+
+
+    def draw(self):
+        # Draw map
+        map_surface = self.baseSurface.copy()
+        self.gameMap.draw_to_surface(map_surface)
+
+        # Draw players
+        players_surface = self.baseSurface.copy()
+        for player in self.players:
+            player.draw_to_surface(players_surface)
+
+        self.camera.draw_surfaces(self.surfaces)

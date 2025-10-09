@@ -46,7 +46,7 @@ class Camera:
             baseSurface.blit(self.background_surface, (0, 0))
 
         # Scale the merged surface and output it onto the window 
-        self.window.blit(pygame.transform.scale(baseSurface, self.window.get_size()), (0, 0))
+        self.window.blit(pygame.transform.scale(baseSurface, self.window.get_size()), (self.x, self.y))
 
         # reset all surfaces for next frame
         for surface in surfaces:
