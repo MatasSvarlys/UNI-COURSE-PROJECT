@@ -38,24 +38,8 @@ class Camera:
         surface.fill((0, 0, 0, 0))
 
     def draw_surfaces(self, surfaces):
-        
-        # Draw the game world with the camera offset
-        # for draw_rect in game_world.game_map.draw_rects:
-            
-        #     # Currenly this just draws all the rectangles in the game map
-        #     # I will probably leave it like this so that later I can load in a level
-        #     pygame.draw.rect(self.background_surface, draw_rect[1], 
-        #                      (draw_rect[0].x - self.x, draw_rect[0].y - self.y, 
-        #                       draw_rect[0].width, draw_rect[0].height))
 
-        # Draw the player
-        # player_one_rect = game_world.playerOne.hitbox.move(-self.x, -self.y) # move to camera position
-        # pygame.draw.rect(self.player_surface, game_world.playerOne.color, player_one_rect)
-
-        # player_two_rect = game_world.playerTwo.hitbox.move(-self.x, -self.y) # move to camera position
-        # pygame.draw.rect(self.player_surface, game_world.playerTwo.color, player_two_rect)
-        
-        # Draw the camera surface to the window
+        # Merge all surfaces
         baseSurface = pygame.Surface((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT), pygame.SRCALPHA)
         baseSurface.set_alpha(None)
         for surface in surfaces:
@@ -64,6 +48,7 @@ class Camera:
         # Scale the merged surface and output it onto the window 
         self.window.blit(pygame.transform.scale(baseSurface, self.window.get_size()), (0, 0))
 
+        # reset all surfaces for next frame
         for surface in surfaces:
             self.reset_surface(surface)
 
