@@ -50,6 +50,7 @@ class Player:
         # The previous two changed the velocity, now we clamp it further if theres a wall in the way
         final_vector = self.handle_collisions(collisionRects, constrained_vector)
 
+        print(final_vector)
         # Update position with final movement vector
         self.update_position(final_vector)
 
@@ -60,9 +61,9 @@ class Player:
         self._debug_counter += 1
 
         if settings.DEBUG_MODE and self._debug_counter % 60 == 0:
-            print(f"Player {self.player_id} x velocity: {self.velocity.x}")
-            print(f"Player {self.player_id} y velocity: {self.velocity.y}")
-            print(f"Player {self.player_id} position: {self.position_as_vector.x}, {self.position_as_vector.y}")
+            print(f"Player {self.player_id} x velocity: {self.movementVector.x}")
+            print(f"Player {self.player_id} y velocity: {self.movementVector.y}")
+            print(f"Player {self.player_id} position: {self.position.x}, {self.position.y}")
             print(f"Player {self.player_id} hitbox: {self.hitbox.x}, {self.hitbox.y}")
             print(f"Player {self.player_id} grounded: {self.grounded}\n")
             # I think due to the way collisions are handled, one frame I will be colliding and the next I'm forced to not
@@ -105,7 +106,7 @@ class Player:
 
         # ============= Y collision ====================
         # To save on calculations move the player hitbox directly
-        self.hitbox.move(0, movementVector.y)
+        nextPos = self.hitbox.move(0, movementVector.y)
         
         # Reset the check for grounded every frame, because if you're on the ground
         # and gravity is applied, you will collide and ground again.
@@ -114,16 +115,14 @@ class Player:
         # TODO: check only some surrounding blocks, checking every block slows down the game a lot
         for rect in collisionRects:
 
-            if self.hitbox.colliderect(rect):
+            if nextPos.colliderect(rect):
                 if movementVector.y > 0:  # down
                     movementVector.y = rect.top - self.hitbox.bottom
                     self.grounded = True
                 elif movementVector.y < 0:  # up
                     movementVector.y = rect.bottom - self.hitbox.top
                 
-                # Reset velocity if we land or hit our head.
                 # Could be improved to give some downward velocity when bumping against a block
-                self.movementVector.y = 0
                 self.coliding_y = True
 
         # ================================
@@ -216,7 +215,7 @@ class Player:
             self.grounded = False
 
         # If we let go of jump while going up, the velocity gets cut hard, but not fully
-        if not key_inputs[self.keymap["JUMP"]] and self.velocity.y < 0:
+        if not key_inputs[self.keymap["JUMP"]] and self.movementVector.y < 0:
             movementVector.y *= settings.PLAYER_JUMP_CUT_MULTIPLIER
 
         return movementVector

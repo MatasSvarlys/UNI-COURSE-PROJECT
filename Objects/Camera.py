@@ -6,7 +6,7 @@ from Settings import global_settings as settings
 class Camera:
     def __init__(self, x=0, y=0):
         
-        self.window = pygame.display.set_mode((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT))
+        self.window = pygame.display.set_mode((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT))
         
         self.x = x
         self.y = y
@@ -40,13 +40,14 @@ class Camera:
     def draw_surfaces(self, surfaces):
 
         # Merge all surfaces
-        baseSurface = pygame.Surface((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT), pygame.SRCALPHA)
+        baseSurface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), pygame.SRCALPHA)
         baseSurface.set_alpha(None)
         for surface in surfaces:
-            baseSurface.blit(self.background_surface, (0, 0))
+            baseSurface.blit(surface, (0, 0))
 
         # Scale the merged surface and output it onto the window 
-        self.window.blit(pygame.transform.scale(baseSurface, self.window.get_size()), (self.x, self.y))
+        self.window.blit(pygame.transform.scale(baseSurface, self.window.get_size()), (0, 0))
+        pygame.display.flip()
 
         # reset all surfaces for next frame
         for surface in surfaces:

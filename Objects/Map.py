@@ -25,13 +25,13 @@ class Map:
         tileTypeMap = map_settings.TILE_TYPE_MAP
         for y_coord, row in enumerate(map_data_raw):
             for x_coord, tile in enumerate(row):
-                if tile in self.tile_type_map:
+                if tile in tileTypeMap:
                     # Calculate the world position of the tile
                     world_x = x_coord * map_settings.TILE_SIZE
                     world_y = y_coord * map_settings.TILE_SIZE
                     
                     # Create a rect for the tile
-                    rect = pygame.Rect(world_x, world_y, self.tile_size, self.tile_size)
+                    rect = pygame.Rect(world_x, world_y, map_settings.TILE_SIZE, map_settings.TILE_SIZE)
                     color = tileTypeMap[tile]["color"]
                     drawRects.append((rect, color))
         
@@ -40,16 +40,17 @@ class Map:
 
     def calculate_collision_rects(self, raw_data):
         collisionRects = []
-        
+        tileTypeMap = map_settings.TILE_TYPE_MAP
+
         for y_coord, row in enumerate(raw_data):
             for x_coord, tile in enumerate(row):
-                if tile in self.tile_type_map and self.tile_type_map[tile]["solid"]:
+                if tile in tileTypeMap and tileTypeMap[tile]["solid"]:
                     # Calculate the world position of the tile
-                    world_x = x_coord * self.tile_size
-                    world_y = (y_coord + 1) * self.tile_size - self.tile_size
+                    world_x = x_coord * map_settings.TILE_SIZE
+                    world_y = (y_coord + 1) * map_settings.TILE_SIZE - map_settings.TILE_SIZE
                     
                     # Create a rect for the tile
-                    rect = pygame.Rect(world_x, world_y, self.tile_size, self.tile_size)
+                    rect = pygame.Rect(world_x, world_y, map_settings.TILE_SIZE, map_settings.TILE_SIZE)
                     collisionRects.append(rect)
         
         return collisionRects

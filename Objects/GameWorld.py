@@ -30,7 +30,7 @@ class GameWorld:
         
         # Update the players
         for player in self.players:
-            player.update(keys, self.game_map.collision_rects)
+            player.update(keys, self.gameMap.collision_rects)
 
             if (
                 self.players[0].hitbox.colliderect(self.players[1].hitbox)
@@ -47,6 +47,8 @@ class GameWorld:
                                 
                 # Reset cooldown timer
                 self.last_collision_time = now
+        
+        self.camera.follow_with_offset(self.players[0].hitbox, offset_x=0, offset_y=-settings.SCREEN_HEIGHT // 4)
 
         # When map will have more logic, it will be updated here
         # self.map.update()
@@ -55,11 +57,13 @@ class GameWorld:
     def draw(self):
         # Draw map
         map_surface = self.baseSurface.copy()
-        self.gameMap.draw_to_surface(map_surface)
+        map_surface = self.gameMap.draw_to_surface(map_surface)
+        self.surfaces.append(map_surface)
 
         # Draw players
         players_surface = self.baseSurface.copy()
         for player in self.players:
-            player.draw_to_surface(players_surface)
+            players_surface = player.draw_to_surface(players_surface)
+        self.surfaces.append(players_surface)
 
         self.camera.draw_surfaces(self.surfaces)

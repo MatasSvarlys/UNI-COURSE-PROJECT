@@ -1,6 +1,5 @@
 import pygame
 import sys
-from Objects.Camera import Camera
 from Objects.GameWorld import GameWorld
 from Settings import global_settings as settings
 
@@ -8,16 +7,12 @@ from Settings import global_settings as settings
 # Initialize Pygame
 pygame.init()
 
-# Set up the screen
-window = pygame.display.set_mode((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT))
-
 # Game loop
 clock = pygame.time.Clock()
 running = True
 
-# Initialize game world and the main camera to display everything
-camera = Camera()
-game_world = GameWorld(camera)
+# Initialize game world
+game_world = GameWorld()
 
 while running:
     # Event handling
@@ -31,22 +26,12 @@ while running:
             running = False
     
 
-    # Fill the background
-    # window.fill(settings.BACKGROUND_COLOR)
-
-    # camera.reset_surface()
-
     # Update everything in the game world
     game_world.update(keys)
 
-    # Set the camera position
-    camera.follow_with_offset(game_world.playerOne.hitbox, offset_x=0, offset_y=-settings.SCREEN_HEIGHT // 4)
-    
     # Draw the game world
-    camera.draw_world(game_world, window)
-
-    # camera.render_to_window(window, game_world.player.hitbox.x // 2, game_world.player.hitbox.y // 2)
-
+    game_world.draw()
+    
     # Update the display
     pygame.display.flip()
     clock.tick(60)  # 60 frames per second
