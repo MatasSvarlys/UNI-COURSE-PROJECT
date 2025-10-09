@@ -220,3 +220,6 @@ class Player:
             movementVector.y *= settings.PLAYER_JUMP_CUT_MULTIPLIER
 
         return movementVector
+    
+    def draw_to_surface(self, surface):
+        pygame.draw.rect(surface, self.color, self.hitbox)

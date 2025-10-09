@@ -50,7 +50,6 @@ object "Map" as map{
 
 object "RL agent" as rla{
     step()+
-    
 ---
     environment = gameWorld
     actionSpace = ["move left", "move right", "jump"]

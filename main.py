@@ -16,7 +16,7 @@ clock = pygame.time.Clock()
 running = True
 
 # Initialize game world and the main camera to display everything
-camera = Camera((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT))
+camera = Camera()
 game_world = GameWorld(camera)
 
 while running:
