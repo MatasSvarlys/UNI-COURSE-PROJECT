@@ -1,7 +1,6 @@
 import pygame
 import sys
 from Objects.GameWorld import GameWorld
-from Settings import global_settings as settings
 
 
 # Initialize Pygame
