@@ -200,7 +200,7 @@ class Player:
     
     def draw_to_surface(self, surface): 
         if self.isSeeker:
-            pygame.draw.rect(surface, (255, 0, 0), self.hitbox)
+            pygame.draw.rect(surface, (0, 255, 0), self.hitbox)
         else:
             pygame.draw.rect(surface, self.color, self.hitbox)
         

@@ -38,7 +38,7 @@ class GameWorld:
                 and now - self.last_collision_time >= self.collision_cooldown
             ):
                 if settings.DEBUG_MODE:
-                    print(f"Seeker {self.seeker.player_id} collided with Player {player.player_id}")
+                    print(f"Seeker collided with Player {player.player_id}")
 
                 
                 # Swap seeker
