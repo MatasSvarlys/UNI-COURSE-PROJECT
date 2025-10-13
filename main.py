@@ -30,9 +30,7 @@ while running:
 
     # Draw the game world
     game_world.draw()
-    
-    # Update the display
-    pygame.display.flip()
+
     clock.tick(60)  # 60 frames per second
 
 # Clean up

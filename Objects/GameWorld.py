@@ -15,7 +15,7 @@ class GameWorld:
         self.camera = Camera()
 
 
-        self.baseSurface = pygame.Surface((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT), pygame.SRCALPHA)
+        self.baseSurface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), pygame.SRCALPHA)
 
         self.surfaces = []
 
@@ -48,8 +48,9 @@ class GameWorld:
                 # Reset cooldown timer
                 self.last_collision_time = now
         
-        self.camera.follow_with_offset(self.players[0].hitbox, offset_x=0, offset_y=-settings.SCREEN_HEIGHT // 4)
-
+        # self.camera.follow_with_offset(self.players[0].hitbox, offset_x=0, offset_y=-settings.WINDOW_HEIGHT // 4)
+        self.camera.follow_between_players(self.playerOne.hitbox, self.playerTwo.hitbox)
+        self.camera.manual_nudge(0, -settings.WINDOW_HEIGHT // 4)
         # When map will have more logic, it will be updated here
         # self.map.update()
 
