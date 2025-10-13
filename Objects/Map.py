@@ -17,6 +17,10 @@ class Map:
                     map_data_raw.append([int(tile) for tile in row])
         
         # TODO: recalculate these in an update funciton if blocks move
+        self.blockGrid = map_data_raw
+        self.grid_width = len(map_data_raw[0]) if map_data_raw else 0
+        self.grid_height = len(map_data_raw)
+
         self.collision_rects = self.calculate_collision_rects(map_data_raw)
         self.drawRects = self.calculate_draw_rects(map_data_raw)
 
@@ -55,6 +59,42 @@ class Map:
         
         return collisionRects
 
+    def world_to_grid_coordinates(self, world_x, world_y):
+        # convert world coordinates to map grid coordinates
+        grid_x = int(world_x // map_settings.TILE_SIZE)
+        grid_y = int(world_y // map_settings.TILE_SIZE)
+        return grid_x, grid_y
+    
+    def get_nearby_collision_rects(self, rect, search_radius=2):
+        nearby_rects = []
+        
+        # Get aprox grid position of the player
+        player_grid_x, player_grid_y = self.world_to_grid_coordinates(rect.centerx, rect.centery)
+        
+        # Search surrounding grid cells
+        for dy in range(-search_radius, search_radius + 1):
+            for dx in range(-search_radius, search_radius + 1):
+                grid_x = player_grid_x + dx
+                grid_y = player_grid_y + dy
+                
+                # Check if grid coordinates are valid
+                if (0 <= grid_x < self.grid_width and 
+                    0 <= grid_y < self.grid_height):
+                    
+                    tile = self.blockGrid[grid_y][grid_x]
+                    
+                    # Check if this tile is solid and should have a collision rect
+                    if (tile in map_settings.TILE_TYPE_MAP and 
+                        map_settings.TILE_TYPE_MAP[tile]["solid"]):
+                        
+                        # Calculate the world position
+                        world_x = grid_x * map_settings.TILE_SIZE
+                        world_y = grid_y * map_settings.TILE_SIZE
+                        rect = pygame.Rect(world_x, world_y, map_settings.TILE_SIZE, map_settings.TILE_SIZE)
+                        nearby_rects.append(rect)
+        
+        return nearby_rects
+    
     def draw_to_surface(self, surface):
         for tile in self.drawRects:
             pygame.draw.rect(

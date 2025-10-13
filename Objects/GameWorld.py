@@ -30,7 +30,7 @@ class GameWorld:
         
         # Update the players
         for player in self.players:
-            player.update(keys, self.gameMap.collision_rects)
+            player.update(keys, self.gameMap.get_nearby_collision_rects(player.hitbox))
 
             if (
                 self.players[0].hitbox.colliderect(self.players[1].hitbox)
@@ -55,6 +55,10 @@ class GameWorld:
 
 
     def draw(self):
+
+        # Reset the surfaces
+        self.surfaces = []
+
         # Draw map
         map_surface = self.baseSurface.copy()
         map_surface = self.gameMap.draw_to_surface(map_surface)
