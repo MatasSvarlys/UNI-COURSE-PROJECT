@@ -21,7 +21,7 @@ class Player:
         self.player_id = player_id
         self.isSeeker = isSeeker
 
-        with open(f'./PlayerKeybinds/p{player_id}.json') as f:
+        with open(f'./PlayerKeybinds/p{player_id+1}.json') as f:
             key_bindings = json.load(f)
         self.keymap = {action: getattr(pygame, code) for action, code in key_bindings.items()}
 
@@ -198,6 +198,14 @@ class Player:
 
         return movementVector
     
+    def set_position(self, x, y):
+        self.hitbox.x = x
+        self.hitbox.y = y
+
+        self.position.x = self.hitbox.x
+        self.position.y = self.hitbox.y
+        
+
     def draw_to_surface(self, surface): 
         if self.isSeeker:
             pygame.draw.rect(surface, (0, 255, 0), self.hitbox)
