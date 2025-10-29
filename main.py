@@ -3,11 +3,7 @@ import sys
 from Objects.GameWorld import GameWorld
 from Objects.AgentController import AgentController
 from Settings import rl_settings
-
-# Flags
-flags = [
-    False # terminated
-]
+import Objects.States as states
 
 # Initialize Pygame
 pygame.init()
@@ -21,8 +17,17 @@ gameWorld = GameWorld()
 
 # Initialize the RL agents
 AgentController = AgentController(gameWorld.get_state_array_size())
+states.rewardsPerEpisode.append(0)
 
 while running:
+    if states.endEpisode:
+        AgentController.post_episode_actions()
+        states.endEpisode = False
+    
+    states.step += 1
+    if states.step >= 60:
+        states.isTerminated = True
+
     # Event handling
     k = pygame.key.get_pressed()
     
@@ -41,7 +46,7 @@ while running:
     
     # Quick reset
     if keys[pygame.K_r]:
-        flags[0] = True
+        states.isTerminated = True
 
     statesForAgents = {}
 
@@ -55,11 +60,11 @@ while running:
     keys = AgentController.step_all_agents(statesForAgents, keys)
 
     # Update everything in the game world
-    gameWorld.update(keys, flags)
+    gameWorld.update(keys)
 
     # Draw the game world
     gameWorld.draw()
-
+    
     clock.tick(60)  # 60 frames per second
 
 # Clean up

@@ -1,5 +1,6 @@
 import pygame
 import numpy as np
+import Objects.States as states
 from Objects.Camera import Camera
 from Objects.Map import Map
 from Objects.Player import Player
@@ -7,14 +8,12 @@ from Settings import global_settings as settings
 
 class GameWorld:
     def __init__(self):
-
         self.gameMap = Map(file_location="map.txt")
         # TODO: make players get generated in general area and without separate objects
         self.playerOne = Player(30, 40, 0, True)
         self.playerTwo = Player(190, 30, 1)
         self.players = [self.playerOne, self.playerTwo]
         self.camera = Camera()
-
 
         self.baseSurface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), pygame.SRCALPHA)
 
@@ -25,11 +24,11 @@ class GameWorld:
         # TODO: make this a setting
         self.collision_cooldown = 2000
         
-    def update(self, keys, flags):
-        
-        if flags[0]:
+    def update(self, keys):
+        if states.isTerminated:
             self.reset()
-            flags[0] = False
+            states.isTerminated = False
+            states.startNewEpisode()
             return
         
         now = pygame.time.get_ticks()
@@ -45,14 +44,15 @@ class GameWorld:
             ):
                 if settings.DEBUG_MODE:
                     print(f"Seeker collided with Player")
-
+                
+                # If we collide, the reward is massive
+                self.reward = 100
                 
                 # Swap seeker
                 # self.players[0].isSeeker = not self.players[0].isSeeker
                 # self.players[1].isSeeker = not self.players[1].isSeeker
                 
-                flags[0] = True
-
+                states.isTerminated = True
 
                 # Reset cooldown timer
                 self.last_collision_time = now
@@ -90,7 +90,7 @@ class GameWorld:
         self.camera.draw_surfaces(self.surfaces)
 
     def get_state_array_size(self):
-        return len(self.get_state_for_player(self.playerOne.player_id))
+        return len(self.get_state_for_player(self.playerOne.player_id)[0])
 
     def get_state_for_player(self, playerID):
         
@@ -133,4 +133,6 @@ class GameWorld:
         # Instead of using all values, it's possible to use LiDAR (raycasting) to only get 
         # positions of a few rectangles, or even better, just the distance to the rectangle
 
-        return np.array(state, dtype=np.float32)
+        reward = player.reward
+
+        return (np.array(state, dtype=np.float32), reward)

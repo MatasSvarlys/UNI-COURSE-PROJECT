@@ -17,6 +17,8 @@ class Player:
 
     def __init__(self, x, y, player_id, isSeeker=False):
         
+        self.reward = 0
+
         self.position = vector(x, y)
         self.player_id = player_id
         self.isSeeker = isSeeker
@@ -34,9 +36,22 @@ class Player:
         self.grounded = False
         self.prev_direction = "right"  # Track the last direction for sprite flipping and turning around while moving
 
+    def collided_with_seeker(self):
+        if(self.isSeeker):
+            self.reward = 100
+        else:
+            self.reward = -100
+        self.isSeeker = not self.isSeeker
+
     # Update the player state
     def update(self, keyInputs, collisionRects, dt=1.0):
-
+        
+        # set the reward every frame
+        if (self.isSeeker):
+            self.reward = -0.1
+        else:
+            self.reward = 0.1
+        
         # Movement vector from last frame
         last_movement = self.movementVector
 
