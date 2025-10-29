@@ -1,5 +1,5 @@
 {
-  "MOVE_LEFT": "K_LEFT",
-  "MOVE_RIGHT": "K_RIGHT",
-  "JUMP": "K_UP"
+  "MOVE_LEFT": "K_j",
+  "MOVE_RIGHT": "K_l",
+  "JUMP": "K_i"
 }

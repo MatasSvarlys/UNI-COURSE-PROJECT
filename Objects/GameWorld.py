@@ -11,7 +11,7 @@ class GameWorld:
         self.gameMap = Map(file_location="map.txt")
         # TODO: make players get generated in general area and without separate objects
         self.playerOne = Player(30, 40, 0, True)
-        self.playerTwo = Player(90, 30, 1)
+        self.playerTwo = Player(190, 30, 1)
         self.players = [self.playerOne, self.playerTwo]
         self.camera = Camera()
 

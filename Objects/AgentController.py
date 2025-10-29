@@ -17,9 +17,6 @@ class AgentController:
     
     def step_all_agents(self, statesForAgents, keys):
 
-        
-        keys = list(keys)
-
         for agent in self.agents.keys():
             # get the next action for the agent
             nextAgentAction = self.agents[agent].step(statesForAgents[agent]) 
@@ -38,23 +35,23 @@ class AgentController:
         # Block all keys defined in the config file
         for _, key_name in key_mappings.items():
             key_code = getattr(pygame, key_name)
-            keys[key_code] = 0
+            keys[key_code] = False
 
         match action:
             case "NOOP":
                 pass
             case "LEFT":
-                keys[getattr(pygame, key_mappings["MOVE_LEFT"])] = 1
+                keys[getattr(pygame, key_mappings["MOVE_LEFT"])] = True
             case "RIGHT":
-                keys[getattr(pygame, key_mappings["MOVE_RIGHT"])] = 1
+                keys[getattr(pygame, key_mappings["MOVE_RIGHT"])] = True
             case "JUMP":
-                keys[getattr(pygame, key_mappings["JUMP"])] = 1
+                keys[getattr(pygame, key_mappings["JUMP"])] = True
             case "LEFT_JUMP":
-                keys[getattr(pygame, key_mappings["MOVE_LEFT"])] = 1
-                keys[getattr(pygame, key_mappings["JUMP"])] = 1
+                keys[getattr(pygame, key_mappings["MOVE_LEFT"])] = True
+                keys[getattr(pygame, key_mappings["JUMP"])] = True
             case "RIGHT_JUMP":
-                keys[getattr(pygame, key_mappings["MOVE_RIGHT"])] = 1
-                keys[getattr(pygame, key_mappings["JUMP"])] = 1
+                keys[getattr(pygame, key_mappings["MOVE_RIGHT"])] = True
+                keys[getattr(pygame, key_mappings["JUMP"])] = True
 
         return keys
 

@@ -24,9 +24,15 @@ AgentController = AgentController(gameWorld.get_state_array_size())
 
 while running:
     # Event handling
-    keys = pygame.key.get_pressed()
+    k = pygame.key.get_pressed()
     
-    
+    # convert from the immutable base key array to a mutable array
+    keys = {}
+
+    # copy the keys from the base keys to the new key array
+    for key_code in range(len(k)):
+        keys[key_code] = k[key_code]
+        
     # Event loop
     for event in pygame.event.get():
         # Turn off logic
