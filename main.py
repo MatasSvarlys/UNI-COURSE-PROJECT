@@ -17,7 +17,9 @@ gameWorld = GameWorld()
 
 # Initialize the RL agents
 AgentController = AgentController(gameWorld.get_state_array_size())
-states.rewardsPerEpisode.append(0)
+states.rewardsPerEpisode["player_one"].append(rl_settings.START_REWARD)
+states.rewardsPerEpisode["player_two"].append(rl_settings.START_REWARD)
+
 
 while running:
     if states.endEpisode:
@@ -25,9 +27,19 @@ while running:
         states.endEpisode = False
     
     states.step += 1
-    if states.step >= 60:
+    # if states.epsilon < 0.1:
+    #     if states.step >= 600:
+    #         states.isTerminated = True
+    # elif states.epsilon < 0.5:
+    #     if states.step >= 180:
+    #         states.isTerminated = True
+    # else:
+    #     if states.step >= 60:
+    #         states.isTerminated = True
+    if states.step >= 600:
         states.isTerminated = True
-
+    
+    
     # Event handling
     k = pygame.key.get_pressed()
     
@@ -65,7 +77,7 @@ while running:
     # Draw the game world
     gameWorld.draw()
     
-    clock.tick(60)  # 60 frames per second
+    clock.tick(240)  # 60 frames per second
 
 # Clean up
 pygame.quit()

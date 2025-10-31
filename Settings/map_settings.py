@@ -11,3 +11,6 @@ TILE_TYPE_MAP = {
     0: {"color": (100, 100, 100), "solid": False},  # Transparent
     1: {"color": (50, 50, 255), "solid": True},     # Solid
 }
+
+PLAYER_ONE_START = [120, 180]
+PLAYER_TWO_START = [190, 40]

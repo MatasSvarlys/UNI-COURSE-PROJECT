@@ -1,6 +1,7 @@
 import json
 import pygame
 from Settings import global_settings as settings
+from Settings import rl_settings
 
 # I don't wanna rewrite the pygame name
 vector = pygame.math.Vector2
@@ -38,19 +39,19 @@ class Player:
 
     def collided_with_seeker(self):
         if(self.isSeeker):
-            self.reward = 100
+            self.reward = rl_settings.REWARD_FOR_WINNING
         else:
-            self.reward = -100
-        self.isSeeker = not self.isSeeker
+            self.reward = -rl_settings.REWARD_FOR_WINNING
+        # self.isSeeker = not self.isSeeker
 
     # Update the player state
     def update(self, keyInputs, collisionRects, dt=1.0):
         
         # set the reward every frame
         if (self.isSeeker):
-            self.reward = -0.1
+            self.reward = -rl_settings.REWARD_FOR_EXISTING
         else:
-            self.reward = 0.1
+            self.reward = rl_settings.REWARD_FOR_EXISTING
         
         # Movement vector from last frame
         last_movement = self.movementVector

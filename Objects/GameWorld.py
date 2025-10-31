@@ -5,13 +5,15 @@ from Objects.Camera import Camera
 from Objects.Map import Map
 from Objects.Player import Player
 from Settings import global_settings as settings
+from Settings import map_settings
 
 class GameWorld:
     def __init__(self):
         self.gameMap = Map(file_location="map.txt")
         # TODO: make players get generated in general area and without separate objects
-        self.playerOne = Player(30, 40, 0, True)
-        self.playerTwo = Player(190, 30, 1)
+        self.playerOne = Player(map_settings.PLAYER_ONE_START[0], map_settings.PLAYER_ONE_START[1], 0, True)
+        
+        self.playerTwo = Player(map_settings.PLAYER_TWO_START[0], map_settings.PLAYER_TWO_START[1], 1)
         self.players = [self.playerOne, self.playerTwo]
         self.camera = Camera()
 
@@ -45,13 +47,14 @@ class GameWorld:
                 if settings.DEBUG_MODE:
                     print(f"Seeker collided with Player")
                 
-                # If we collide, the reward is massive
-                self.reward = 100
-                
                 # Swap seeker
                 # self.players[0].isSeeker = not self.players[0].isSeeker
                 # self.players[1].isSeeker = not self.players[1].isSeeker
                 
+
+                self.players[0].collided_with_seeker()
+                self.players[1].collided_with_seeker()
+
                 states.isTerminated = True
 
                 # Reset cooldown timer
@@ -64,8 +67,8 @@ class GameWorld:
         # self.map.update()
 
     def reset(self):
-        self.playerOne.set_position(30, 40)
-        self.playerTwo.set_position(90, 30)
+        self.playerOne.set_position(map_settings.PLAYER_ONE_START[0], map_settings.PLAYER_ONE_START[1])
+        self.playerTwo.set_position(np.random.randint(map_settings.TILE_SIZE*2, (map_settings.MAP_WIDTH-2)*map_settings.TILE_SIZE), map_settings.PLAYER_TWO_START[1])
         self.playerOne.isSeeker = True
         self.playerTwo.isSeeker = False
 

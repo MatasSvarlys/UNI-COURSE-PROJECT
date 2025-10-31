@@ -46,9 +46,17 @@ class DQNAgent:
             print(f"Using device: {self.device}")
             print(f"Network architecture: {self.policy_network}")
 
+
+    def state_to_device(self, state):
+        return torch.FloatTensor(state).unsqueeze(0).to(self.device)
+
+    def action_to_device(self, action):
+        return torch.tensor(action, dtype=torch.long, device=self.device)
+
+
     def step(self, state):
 
-        self.prevState = torch.FloatTensor(state).unsqueeze(0)
+        self.prevState = self.state_to_device(state)
 
         # state is a np float array that gets turned into a torch acceptable tensor
         # the unsqueeze 0 creates a new dimention to represent batch size of 1
@@ -80,19 +88,23 @@ class DQNAgent:
     # Optimize policy network
     def optimize(self, mini_batch, policy_dqn, target_dqn):
 
-        for state, action, new_state, reward, terminated in mini_batch:
-            new_state.to(self.device)
-            state.to(self.device)
-            if terminated:
-                target = reward
-            else:
-                with torch.no_grad():
-                    targetQ = reward + rl_settings.DISCOUNT_GAMA * target_dqn(new_state).max()
+        states, actions, newStates, rewards, terminations = zip(*mini_batch)
 
-        currQ = policy_dqn(state)
+        states = torch.stack(states).squeeze(1)
+        actions = torch.stack(actions)
+        newStates = torch.stack(newStates).squeeze(1)
+        rewards = torch.stack(rewards)
+
+        terminations = torch.tensor(terminations).float().to(self.device)
+
+        with torch.no_grad():
+            targetQ = rewards + (1-terminations) * rl_settings.DISCOUNT_GAMA * target_dqn(newStates).max(dim=1)[0]
+
+
+        currQ = policy_dqn(states).gather(dim=1, index=actions.unsqueeze(dim=1)).squeeze()
 
         loss = self.loss_fn(currQ, targetQ)
         # Optimize the model (backpropagation)
         self.optimizer.zero_grad()  # Clear gradients
         loss.backward()             # Compute gradients
-        self.optimizer.step()       # Update network parameters i.e. weights and biases
+        self.optimizer.step()       # Update network parameters
