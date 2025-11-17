@@ -95,6 +95,7 @@ class Player:
         
         self.hitbox.move_ip(movementVector.x, 0)
 
+        
         # ============== x collision ===============
         # get the position where the player would be if it moved
 

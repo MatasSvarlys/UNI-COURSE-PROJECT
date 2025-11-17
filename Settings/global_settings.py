@@ -31,7 +31,7 @@ TILE_SIZE_RAW = 64
 
 # Camera settings
 CAMERA_MODE = False
-DEBUG_MODE = True
+DEBUG_MODE = False
 
 
 # Gen collision consts

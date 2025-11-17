@@ -6,6 +6,7 @@ from Objects.Map import Map
 from Objects.Player import Player
 from Settings import global_settings as settings
 from Settings import map_settings
+from Settings import rl_settings
 
 class GameWorld:
     def __init__(self):
@@ -15,17 +16,36 @@ class GameWorld:
         
         self.playerTwo = Player(map_settings.PLAYER_TWO_START[0], map_settings.PLAYER_TWO_START[1], 1)
         self.players = [self.playerOne, self.playerTwo]
-        self.camera = Camera()
 
-        self.baseSurface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), pygame.SRCALPHA)
+        if not rl_settings.TRAINING_MODE:
+            self.camera = Camera()
+            self.baseSurface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), pygame.SRCALPHA)
 
-        self.surfaces = []
+            self.surfaces = []
 
         # for seeker collisions
         self.last_collision_time = 0
         # TODO: make this a setting
         self.collision_cooldown = 2000
+
+
+        self.previous_positions = {
+            self.playerOne.player_id: self.playerOne.position.copy(),
+            self.playerTwo.player_id: self.playerTwo.position.copy()
+        }
+    
+    def distance_between_two_rects(self, pos1, pos2):
+        return ((pos1.x - pos2.x) ** 2 + (pos1.y - pos2.y) ** 2) ** 0.5
+
+    def is_player_out_of_bounds(self, player):
+        map_width_pixels = map_settings.MAP_WIDTH * map_settings.TILE_SIZE
         
+        # TODO: make it a setting
+        buffer_zone = map_settings.TILE_SIZE * 1.5
+        
+        return (player.position.x < buffer_zone or 
+                player.position.x > map_width_pixels - buffer_zone)
+
     def update(self, keys):
         if states.isTerminated:
             self.reset()
@@ -34,10 +54,18 @@ class GameWorld:
             return
         
         now = pygame.time.get_ticks()
-        
+        self.distanceBetween = self.distance_between_two_rects(self.playerOne.position, self.playerTwo.position)
+
         # Update the players
         for player in self.players:
             player.update(keys, self.gameMap.get_nearby_collision_rects(player.hitbox))
+
+            if self.distanceBetween <= 100:
+                player.reward += rl_settings.REWARD_FOR_PROXIMITY
+
+            if self.is_player_out_of_bounds(player):
+                player.reward -= rl_settings.PENALTY_FOR_RUNNING_OUT_THE_MAP
+
 
             if (
                 self.players[0].hitbox.colliderect(self.players[1].hitbox)
@@ -60,9 +88,13 @@ class GameWorld:
                 # Reset cooldown timer
                 self.last_collision_time = now
         
-        # self.camera.follow_with_offset(self.players[0].hitbox, offset_x=0, offset_y=-settings.WINDOW_HEIGHT // 4)
-        self.camera.follow_between_players(self.playerOne.hitbox, self.playerTwo.hitbox)
-        self.camera.manual_nudge(0, -settings.WINDOW_HEIGHT // 4)
+
+        if not rl_settings.TRAINING_MODE:
+            # self.camera.follow_with_offset(self.players[0].hitbox, offset_x=0, offset_y=-settings.WINDOW_HEIGHT // 4)
+            self.camera.follow_between_players(self.playerOne.hitbox, self.playerTwo.hitbox)
+            self.camera.manual_nudge(0, -settings.WINDOW_HEIGHT // 4)
+
+
         # When map will have more logic, it will be updated here
         # self.map.update()
 
@@ -75,7 +107,9 @@ class GameWorld:
         return
     
     def draw(self):
-
+        print("a")
+        if rl_settings.TRAINING_MODE:
+            return
         # Reset the surfaces
         self.surfaces = []
 
@@ -119,13 +153,12 @@ class GameWorld:
         # Other player relative state (4 values)
         
         # An argument could be made to use direct position instead of relative
-        dx = otherPlayer.position.x - player.position.x
-        dy = otherPlayer.position.y - player.position.y
+        # dx = otherPlayer.position.x - player.position.x
+        # dy = otherPlayer.position.y - player.position.y
 
         state.extend([
-            dx,
-            dy,
-            float(otherPlayer.isSeeker)
+            otherPlayer.position.x,
+            otherPlayer.position.y,
         ])
 
         # Since a NN won't accept a rect, use only the corner position

@@ -5,6 +5,7 @@ from Objects.AgentController import AgentController
 from Settings import rl_settings
 import Objects.States as states
 
+
 # Initialize Pygame
 pygame.init()
 
@@ -16,7 +17,8 @@ running = True
 gameWorld = GameWorld()
 
 # Initialize the RL agents
-AgentController = AgentController(gameWorld.get_state_array_size())
+# TODO: make this automatic based on settings
+AgentController = AgentController(gameWorld.get_state_array_size(), ["player_one"])
 states.rewardsPerEpisode["player_one"].append(rl_settings.START_REWARD)
 states.rewardsPerEpisode["player_two"].append(rl_settings.START_REWARD)
 
@@ -74,10 +76,15 @@ while running:
     # Update everything in the game world
     gameWorld.update(keys)
 
-    # Draw the game world
-    gameWorld.draw()
-    
-    clock.tick(240)  # 60 frames per second
+    print(rl_settings.TRAINING_MODE)
+    if not rl_settings.TRAINING_MODE:
+        print("a")
+        # Draw the game world
+        gameWorld.draw()
+        
+        clock.tick(60)  # 60 frames per second
+    else:
+        pass
 
 # Clean up
 pygame.quit()
