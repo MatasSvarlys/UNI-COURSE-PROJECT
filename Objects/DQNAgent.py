@@ -41,6 +41,7 @@ class DQNAgent:
 
         # init dqn
         self.policy_network = DQNetwork(stateSize, action_size).to(self.device)
+
         if isTraining:
             self.target_network = DQNetwork(stateSize, action_size).to(self.device)
             # Make sure the initial weights are the same
@@ -64,21 +65,21 @@ class DQNAgent:
 
     def step(self, state):
         
-        # print(f"step: {state.shape}")
-
         # state is a np float array that gets turned into a torch acceptable tensor
         # the unsqueeze 0 creates a new dimention to represent batch size of 1
         # then it gets put into a device for calculations
+        # print(f"step: {state.shape}")
+
         state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
             # pass the tensor into the network and get its calculated q values
             q_values = self.policy_network(state_tensor)
-            # print(q_values)
+
             # then pick the highest evaluated one
             action_idx = torch.argmax(q_values, dim=1).item()
         
-        # pick the action from the action map with default being noop
+        # translate to the action from the action map 
         action = self.action_map[action_idx]
         
         # TODO: i should probably make a debug object atp
@@ -101,10 +102,12 @@ class DQNAgent:
 
         # States is of shape [mini_batch, frame_skip_steps, actual_size]
         # print(f"optimize: {np.array(states).shape}")
+
         # States has to be of shape [mini_batch, frame_skip_steps * actual_size]
         states = torch.from_numpy(np.array(states)).float().to(self.device)
         states = states.view(states.size(0), -1)
         # print(f"optimize: {states.shape}")
+
         actions = torch.stack(actions)
         newStates = torch.from_numpy(np.array(newStates)).float().to(self.device)
         newStates = newStates.view(newStates.size(0), -1)
@@ -118,8 +121,18 @@ class DQNAgent:
 
         currQ = policy_dqn(states).gather(dim=1, index=actions.unsqueeze(dim=1)).squeeze()
 
+        if global_settings.DEBUG_MODE:
+            print(f"Current Q values: {currQ} -> target Q values: {targetQ}")
+        
         loss = self.loss_fn(currQ, targetQ)
-        # Optimize the model (backpropagation)
+
+        # Optimize the model
         self.optimizer.zero_grad()  # Clear gradients
         loss.backward()             # Compute gradients
+        
+        # This has been used in the human-level-control-through-deep-reinforcement-learning paper
+        # to make sure the model does not have major leaps in learning
+        for param in policy_dqn.parameters():
+            param.grad.data.clamp_(-1, 1)
+
         self.optimizer.step()       # Update network parameters

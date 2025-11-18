@@ -25,20 +25,11 @@ states.rewardsPerEpisode["player_two"].append(rl_settings.START_REWARD)
 
 while running:
     if states.endEpisode:
-        AgentController.post_episode_actions()
+        # AgentController.post_episode_actions()
         states.endEpisode = False
     
-    states.step += 1
-    # if states.epsilon < 0.1:
-    #     if states.step >= 600:
-    #         states.isTerminated = True
-    # elif states.epsilon < 0.5:
-    #     if states.step >= 180:
-    #         states.isTerminated = True
-    # else:
-    #     if states.step >= 60:
-    #         states.isTerminated = True
-    if states.step >= 600:
+    states.episodeFrame += 1
+    if states.episodeFrame >= 600:
         states.isTerminated = True
     
     
@@ -49,6 +40,7 @@ while running:
     keys = {}
 
     # copy the keys from the base keys to the new key array
+    # TODO: resolve the issue that arrow keys don't work, because their key code is not ASCII code 
     for key_code in range(len(k)):
         keys[key_code] = k[key_code]
         
@@ -68,17 +60,18 @@ while running:
         # the 0 here looks awful, probably better to remake it with a string name
         statesForAgents["player_one"] = gameWorld.get_state_for_player(0) 
     if rl_settings.RL_CONTROL["player_two"]:
-        # the 0 here looks awful, probably better to remake it with a string name
+        # the 1 here looks awful, probably better to remake it with a string name
         statesForAgents["player_two"] = gameWorld.get_state_for_player(1) 
 
+    # TODO: only get the agent key here
     keys = AgentController.step_all_agents(statesForAgents, keys)
 
     # Update everything in the game world
     gameWorld.update(keys)
 
-    print(rl_settings.TRAINING_MODE)
+    # TODO: update the agent memory here 
+
     if not rl_settings.TRAINING_MODE:
-        print("a")
         # Draw the game world
         gameWorld.draw()
         

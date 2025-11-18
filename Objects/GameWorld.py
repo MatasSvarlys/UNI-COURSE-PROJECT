@@ -107,7 +107,6 @@ class GameWorld:
         return
     
     def draw(self):
-        print("a")
         if rl_settings.TRAINING_MODE:
             return
         # Reset the surfaces

@@ -4,7 +4,7 @@ RL_CONTROL = {
     "player_two": False,
 }
 
-TRAINING_MODE = False
+TRAINING_MODE = True
 
 ACTIONS = [
     "NOOP",
@@ -19,7 +19,12 @@ ACTION_SPACE_SIZE = len(ACTIONS)
 
 MINI_BATCH = 32
 MEMORY_SIZE = 10000
-NETWORK_SYNC_RATE = 20
+EXPERIENCE_COLLECTION_EPISODES = 1000
+
+# every this amount of steps, optimize the policy network
+NETWORK_LEARN_RATE = 4
+# every this amount of policy network optimizations copy the policy network into the target network
+NETWORK_SYNC_RATE = 5
 
 DISCOUNT_GAMA = 0.99
 LEARNING_RATE = 0.001
