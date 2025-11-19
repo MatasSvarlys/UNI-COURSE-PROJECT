@@ -62,6 +62,10 @@ class AgentController:
         currEpsilon = states.epsilon
 
         for agentName in self.agentNames:
+            
+            agentReward = statesForAgents[agentName][1]
+            states.rewardsPerEpisode[agentName][states.episodeCount] += agentReward
+
             # Only act once every n frames
             if states.episodeFrame % rl_settings.FRAME_SKIPPING_STEPS == 0:
                 
@@ -83,8 +87,6 @@ class AgentController:
 
                 # From here on we will need the recent frames and to start calculating the reward
 
-                agentReward = statesForAgents[agentName][1]
-                states.rewardsPerEpisode[agentName][states.episodeCount] += agentReward
                 agentRewardTensor = self.agents[agentName].float_to_device(agentReward)
                 # print(agentReward)
 
@@ -101,7 +103,7 @@ class AgentController:
                     nextAgentAction = self.agents[agentName].step(currStackedState) 
                     self.lastAction[agentName] = self.agents[agentName].float_to_device(self.action_to_idx(nextAgentAction))
                     keys = self.action_to_input(agentName, nextAgentAction, keys) 
-                    
+                    print(f"next agent action: {nextAgentAction}")
                     continue
 
                 # If the game was terminated, do nothing
@@ -152,7 +154,7 @@ class AgentController:
         if states.isTerminated:
             self.episodeStepCount = 0
             self.post_episode_actions()
-            print("Terminated, starting episode count again")
+            # print("Terminated, starting episode count again")
         
         return keys
     

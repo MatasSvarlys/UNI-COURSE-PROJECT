@@ -106,6 +106,24 @@ class GameWorld:
 
         return
     
+    def draw_lidar_rays(self, surface, player_position):
+        angles = [0, 45, 90, 135, 180, 225, 270, 315]
+        
+        for angle in angles:
+            _, collision_point = self.cast_lidar_ray(player_position, angle)
+            
+            if collision_point:
+                # Draw ray up to collision point (red line)
+                pygame.draw.line(surface, (255, 0, 0), player_position, collision_point, 1)
+                # Draw small circle at collision point
+                pygame.draw.circle(surface, (255, 0, 0), (int(collision_point[0]), int(collision_point[1])), 3)
+            else:
+                # Draw full ray if no collision (green line)
+                angle_rad = np.radians(angle)
+                end_x = player_position.x + 1000 * np.cos(angle_rad)
+                end_y = player_position.y + 1000 * np.sin(angle_rad)
+                pygame.draw.line(surface, (0, 255, 0), player_position, (end_x, end_y), 1)
+
     def draw(self):
         if rl_settings.TRAINING_MODE:
             return
@@ -121,9 +139,60 @@ class GameWorld:
         players_surface = self.baseSurface.copy()
         for player in self.players:
             players_surface = player.draw_to_surface(players_surface)
+            if player.isSeeker:
+                self.draw_lidar_rays(players_surface, player.position)
         self.surfaces.append(players_surface)
 
         self.camera.draw_surfaces(self.surfaces)
+
+
+    def cast_lidar_ray(self, start_pos, angle, max_distance=1000):
+        # Convert angle to radians
+        angle_rad = np.radians(angle)
+        
+        # Calculate end point of the ray
+        end_x = start_pos.x + max_distance * np.cos(angle_rad)
+        end_y = start_pos.y + max_distance * np.sin(angle_rad)
+        
+        # to see the lowest distance, use one of those 12th grade algorithms
+        min_distance = max_distance
+        collision_point = None
+
+        # TODO: get collisions to the other player too
+        for rect in self.gameMap.collision_rects:
+            if self.line_rect_intersection(start_pos, (end_x, end_y), rect):
+                # Find the exact collision point
+                clipped_line = rect.clipline(start_pos, (end_x, end_y))
+                if clipped_line:
+                    # Get the closest point of intersection
+                    point1, point2 = clipped_line
+                    d1 = start_pos.distance_to(point1)
+                    d2 = start_pos.distance_to(point2)
+                    
+                    if d1 < min_distance:
+                        min_distance = d1
+                        collision_point = point1
+                    if d2 < min_distance:
+                        min_distance = d2
+                        collision_point = point2
+        
+        # Return both distance and collision point for drawing
+        return min_distance, collision_point
+    
+    def line_rect_intersection(self, startPos, endPos, rect):
+        return bool(rect.clipline(startPos, endPos))
+
+    def get_lidar_readings(self, player_position):
+        angles = [0, 45, 90, 135, 180, 225, 270, 315]  # 8 directions
+        readings = []
+        
+        for angle in angles:
+            distance, _ = self.cast_lidar_ray(player_position, angle)
+            readings.append(distance)
+        
+        return readings
+
+
 
     def get_state_array_size(self):
         return len(self.get_state_for_player(self.playerOne.player_id)[0])
@@ -162,12 +231,19 @@ class GameWorld:
 
         # Since a NN won't accept a rect, use only the corner position
         # Could be nice to test how it feels using all corners or just the middle position
-        for rect in self.gameMap.collision_rects:
-            state.extend(rect.topleft)
+        # for rect in self.gameMap.collision_rects:
+        #     state.extend(rect.topleft)
+
 
         # Instead of using all values, it's possible to use LiDAR (raycasting) to only get 
         # positions of a few rectangles, or even better, just the distance to the rectangle
+        
+        # TODO: use the middle of the player instead of the top right
+        lidar_readings = self.get_lidar_readings(player.position)
+        # print(f"{lidar_readings}\n")
+        state.extend(lidar_readings)
 
+        
         reward = player.reward
-
+        
         return (np.array(state, dtype=np.float32), reward)
