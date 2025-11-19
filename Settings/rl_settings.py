@@ -4,7 +4,8 @@ RL_CONTROL = {
     "player_two": False,
 }
 
-TRAINING_MODE = True
+TRAINING_MODE = False
+LOAD_MODEL = False
 
 ACTIONS = [
     "NOOP",

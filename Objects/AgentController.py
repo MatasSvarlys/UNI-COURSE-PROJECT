@@ -27,13 +27,20 @@ class AgentController:
 
         self.setup_agents()
 
-        self.load_agents("loads")
+        if rl_settings.LOAD_MODEL:
+            self.load_agents("loads")
     
     def load_agents(self, file_path):
         for agentName in self.agentNames:
             policy_path = os.path.join(file_path, f"{agentName}_policy.pth")
             if os.path.exists(policy_path):
                 self.agents[agentName].policy_network.load_state_dict(torch.load(policy_path))
+            
+            if rl_settings.TRAINING_MODE:
+                target_path = os.path.join(file_path, f"{agentName}_target.pth")
+                if os.path.exists(policy_path):
+                    self.agents[agentName].target_network.load_state_dict(torch.load(target_path))
+
 
     def save_agents(self, file_path, episode=None):
         os.makedirs(file_path, exist_ok=True)
@@ -145,14 +152,14 @@ class AgentController:
         if states.isTerminated:
             self.episodeStepCount = 0
             self.post_episode_actions()
-            # print("Terminated, starting episode count again")
+            print("Terminated, starting episode count again")
         
         return keys
     
     def post_episode_actions(self):
         print(f"{states.episodeCount}: player one - {states.epsilon} - {states.rewardsPerEpisode["player_one"][states.episodeCount - 1]}")
         
-        if states.episodeCount % 10000 == 0:
+        if states.episodeCount % 10000 == 0 and rl_settings.TRAINING_MODE:
             self.save_agents("saves", states.episodeCount)
 
         if global_settings.DEBUG_MODE:
