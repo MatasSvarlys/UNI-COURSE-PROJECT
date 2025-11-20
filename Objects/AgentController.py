@@ -62,7 +62,7 @@ class AgentController:
         currEpsilon = states.epsilon
 
         for agentName in self.agentNames:
-            
+
             agentReward = statesForAgents[agentName][1]
             states.rewardsPerEpisode[agentName][states.episodeCount] += agentReward
 
@@ -176,10 +176,7 @@ class AgentController:
             if len(agent.memory) > rl_settings.MINI_BATCH and rl_settings.TRAINING_MODE: 
                 mini_batch = agent.memory.sample(rl_settings.MINI_BATCH)
                 agent.optimize(mini_batch, agent.policy_network, agent.target_network)
-
-                # TODO: figure this out
-                if states.episodeFrame > rl_settings.NETWORK_SYNC_RATE:
-                    agent.target_network.load_state_dict(agent.policy_network.state_dict())
+                agent.target_network.load_state_dict(agent.policy_network.state_dict())
 
 
     def action_to_idx(self, action):

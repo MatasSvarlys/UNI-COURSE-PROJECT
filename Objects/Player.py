@@ -85,8 +85,6 @@ class Player:
             print(f"Player {self.player_id} position: {self.position.x}, {self.position.y}")
             print(f"Player {self.player_id} hitbox: {self.hitbox.x}, {self.hitbox.y}")
             print(f"Player {self.player_id} grounded: {self.grounded}\n")
-            # I think due to the way collisions are handled, one frame I will be colliding and the next I'm forced to not
-            # And that is why this flips between True and False kinda randomly 
             print(f"Player {self.player_id} coliding: {collisionDictionary}")
 
     def handle_collisions(self, collisionRects, movementVector):
@@ -104,6 +102,9 @@ class Player:
 
             # Check for overlap and directly set your hitbox outside of the block
             if self.hitbox.colliderect(rect):
+                
+                self.reward -= rl_settings.PENALTY_FOR_RUNNING_INTO_WALL
+
                 if movementVector.x > 0:  # right
                     # set the distance to move so the hitbox is exactly next to the rect
                     self.hitbox.right = rect.left

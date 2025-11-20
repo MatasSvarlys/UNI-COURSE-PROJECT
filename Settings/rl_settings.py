@@ -4,8 +4,8 @@ RL_CONTROL = {
     "player_two": False,
 }
 
-TRAINING_MODE = True
-LOAD_MODEL = False
+TRAINING_MODE = False
+LOAD_MODEL = True
 
 ACTIONS = [
     "NOOP",
@@ -38,7 +38,7 @@ FRAME_SKIPPING_STEPS = 4
 REWARD_FOR_WINNING = 10
 REWARD_FOR_EXISTING = 0.5
 REWARD_FOR_PROXIMITY = 0.2
-PENALTY_FOR_RUNNING_OUT_THE_MAP = 2
+PENALTY_FOR_RUNNING_INTO_WALL = 0.5
 # TODO: make a penalty for not moving for a long period of time
 
 START_REWARD = 50

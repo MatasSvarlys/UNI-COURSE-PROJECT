@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import torch_directml
 import torch.nn as nn
 import torch.nn.functional as F
 from Settings import global_settings, rl_settings
@@ -30,6 +31,7 @@ class DQNAgent:
         self.state_size = stateSize
         self.action_size = action_size
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # self.device = torch_directml.device(torch_directml.default_device())
         
         self.isTraining = isTraining 
         self.memory = ReplayMemory(rl_settings.MEMORY_SIZE)
@@ -46,7 +48,7 @@ class DQNAgent:
             self.target_network = DQNetwork(stateSize, action_size).to(self.device)
             # Make sure the initial weights are the same
             self.target_network.load_state_dict(self.policy_network.state_dict())
-            self.optimizer = torch.optim.Adam(self.policy_network.parameters(), lr=rl_settings.LEARNING_RATE)
+            self.optimizer = torch.optim.RMSprop(self.policy_network.parameters(), lr=rl_settings.LEARNING_RATE)
 
         self.action_map = rl_settings.ACTIONS
         

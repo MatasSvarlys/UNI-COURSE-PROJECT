@@ -60,11 +60,11 @@ class GameWorld:
         for player in self.players:
             player.update(keys, self.gameMap.get_nearby_collision_rects(player.hitbox))
 
-            if self.distanceBetween <= 100:
+            if self.distanceBetween <= 50:
                 player.reward += rl_settings.REWARD_FOR_PROXIMITY
 
-            if self.is_player_out_of_bounds(player):
-                player.reward -= rl_settings.PENALTY_FOR_RUNNING_OUT_THE_MAP
+            # if self.is_player_out_of_bounds(player):
+            #     player.reward -= rl_settings.PENALTY_FOR_RUNNING_INTO_WALL
 
 
             if (
@@ -227,6 +227,8 @@ class GameWorld:
         state.extend([
             otherPlayer.position.x,
             otherPlayer.position.y,
+            otherPlayer.movementVector.x,
+            otherPlayer.movementVector.y,
         ])
 
         # Since a NN won't accept a rect, use only the corner position
@@ -245,5 +247,5 @@ class GameWorld:
 
         
         reward = player.reward
-        
+
         return (np.array(state, dtype=np.float32), reward)
