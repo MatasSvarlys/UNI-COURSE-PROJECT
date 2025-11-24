@@ -103,7 +103,7 @@ class AgentController:
                     nextAgentAction = self.agents[agentName].step(currStackedState) 
                     self.lastAction[agentName] = self.agents[agentName].float_to_device(self.action_to_idx(nextAgentAction))
                     keys = self.action_to_input(agentName, nextAgentAction, keys) 
-                    print(f"next agent action: {nextAgentAction}")
+                    # print(f"next agent action: {nextAgentAction}")
                     continue
 
                 # If the game was terminated, do nothing
@@ -138,7 +138,7 @@ class AgentController:
                 keys = self.action_to_input(agentName, rl_settings.ACTIONS[self.lastAction[agentName]], keys) 
         
         # Every few steps update the models   
-        if self.episodeStepCount % rl_settings.NETWORK_LEARN_RATE == 0 and rl_settings.TRAINING_MODE:
+        if self.episodeStepCount % rl_settings.NETWORK_LEARN_RATE == 0 and rl_settings.TRAINING_MODE and states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES:
             for agentName in self.agents:
                 agent = self.agents[agentName]
                 # If enough experience has been collected
@@ -173,7 +173,7 @@ class AgentController:
         for agentName in self.agents.keys():
             agent = self.agents[agentName]
             # If enough experience has been collected
-            if len(agent.memory) > rl_settings.MINI_BATCH and rl_settings.TRAINING_MODE: 
+            if len(agent.memory) > rl_settings.MINI_BATCH and rl_settings.TRAINING_MODE and states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES: 
                 mini_batch = agent.memory.sample(rl_settings.MINI_BATCH)
                 agent.optimize(mini_batch, agent.policy_network, agent.target_network)
                 agent.target_network.load_state_dict(agent.policy_network.state_dict())

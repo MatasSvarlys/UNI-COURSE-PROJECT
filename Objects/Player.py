@@ -211,8 +211,8 @@ class Player:
             self.grounded = False
 
         # If we let go of jump while going up, the velocity gets cut hard, but not fully
-        if not key_inputs[self.keymap["JUMP"]] and lastMovement.y < 0:
-            movementVector.y *= settings.PLAYER_JUMP_CUT_MULTIPLIER
+        # if not key_inputs[self.keymap["JUMP"]] and lastMovement.y < 0:
+        #     movementVector.y *= settings.PLAYER_JUMP_CUT_MULTIPLIER
 
         return movementVector
     

@@ -100,7 +100,7 @@ class GameWorld:
 
     def reset(self):
         self.playerOne.set_position(map_settings.PLAYER_ONE_START[0], map_settings.PLAYER_ONE_START[1])
-        self.playerTwo.set_position(np.random.randint(map_settings.TILE_SIZE*2, (map_settings.MAP_WIDTH-2)*map_settings.TILE_SIZE), map_settings.PLAYER_TWO_START[1])
+        self.playerTwo.set_position(np.random.randint(map_settings.PLAYER_ONE_START[0]+map_settings.TILE_SIZE*2, (map_settings.MAP_WIDTH-2)*map_settings.TILE_SIZE), map_settings.PLAYER_TWO_START[1])
         self.playerOne.isSeeker = True
         self.playerTwo.isSeeker = False
 
