@@ -5,7 +5,7 @@ RL_CONTROL = {
 }
 
 TRAINING_MODE = False
-LOAD_MODEL = True
+LOAD_MODEL = False
 
 ACTIONS = [
     "NOOP",

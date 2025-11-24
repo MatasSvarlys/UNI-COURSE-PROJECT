@@ -17,18 +17,34 @@ class Map:
                     map_data_raw.append([int(tile) for tile in row])
         
         # TODO: recalculate these in an update funciton if blocks move
+        # TODO: use the global var instead of passing map data
         self.blockGrid = map_data_raw
         self.grid_width = len(map_data_raw[0]) if map_data_raw else 0
         self.grid_height = len(map_data_raw)
 
+        self.p1StartPos = self.getPlayerPosition(map_data_raw, 2)
+        self.p2StartPos = self.getPlayerPosition(map_data_raw, 3)
+
         self.collision_rects = self.calculate_collision_rects(map_data_raw)
         self.drawRects = self.calculate_draw_rects(map_data_raw)
+
+    def getPlayerPosition(self, map_data_raw, playerNumber):
+        for y_coord, row in enumerate(map_data_raw):
+            for x_coord, tile in enumerate(row):
+                if tile == playerNumber:
+                    playerX = x_coord * map_settings.TILE_SIZE
+                    playerY = y_coord * map_settings.TILE_SIZE   
+
+        return (playerX, playerY)
+    
 
     def calculate_draw_rects(self, map_data_raw):
         drawRects = []
         tileTypeMap = map_settings.TILE_TYPE_MAP
         for y_coord, row in enumerate(map_data_raw):
             for x_coord, tile in enumerate(row):
+                if tile == 2 or tile == 3:
+                    tile = 0
                 if tile in tileTypeMap:
                     # Calculate the world position of the tile
                     world_x = x_coord * map_settings.TILE_SIZE

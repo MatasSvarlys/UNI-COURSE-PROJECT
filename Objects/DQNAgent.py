@@ -10,10 +10,10 @@ class DQNetwork(nn.Module):
     def __init__(self, state_size, action_size):
         super(DQNetwork, self).__init__()
         self.input_size = state_size * rl_settings.FRAME_SKIPPING_STEPS
-        self.fc1 = nn.Linear(self.input_size, 64)
-        self.fc2 = nn.Linear(64, 64)
-        self.fc3 = nn.Linear(64, 32)
-        self.fc4 = nn.Linear(32, action_size)
+        self.fc1 = nn.Linear(self.input_size, self.input_size*2)
+        self.fc2 = nn.Linear(self.input_size*2, self.input_size*4)
+        self.fc3 = nn.Linear(self.input_size*4, self.input_size*2)
+        self.fc4 = nn.Linear(self.input_size*2, action_size)
         
     def forward(self, x):
         # print(f"forward: {x.shape}")

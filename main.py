@@ -19,7 +19,7 @@ gameWorld = GameWorld()
 # Initialize the RL agents
 # TODO: make this automatic based on settings
 AgentController = AgentController(gameWorld.get_state_array_size(), ["player_one"])
-print(gameWorld.get_state_array_size())
+# print(gameWorld.get_state_array_size())
 states.rewardsPerEpisode["player_one"].append(rl_settings.START_REWARD)
 states.rewardsPerEpisode["player_two"].append(rl_settings.START_REWARD)
 

@@ -1,3 +1,5 @@
+import os
+import random
 import pygame
 import numpy as np
 import Objects.States as states
@@ -10,11 +12,15 @@ from Settings import rl_settings
 
 class GameWorld:
     def __init__(self):
-        self.gameMap = Map(file_location="map.txt")
-        # TODO: make players get generated in general area and without separate objects
-        self.playerOne = Player(map_settings.PLAYER_ONE_START[0], map_settings.PLAYER_ONE_START[1], 0, True)
+        self.map_files = self.get_map_files()
+        self.current_map_file = random.choice(self.map_files)
         
-        self.playerTwo = Player(map_settings.PLAYER_TWO_START[0], map_settings.PLAYER_TWO_START[1], 1)
+        self.gameMap = Map(file_location=self.current_map_file)
+        
+        # TODO: make players get generated in general area and without separate objects
+        self.playerOne = Player(self.gameMap.p1StartPos[0], self.gameMap.p1StartPos[1], 0, True)
+        
+        self.playerTwo = Player(self.gameMap.p2StartPos[0], self.gameMap.p2StartPos[1], 1)
         self.players = [self.playerOne, self.playerTwo]
 
         if not rl_settings.TRAINING_MODE:
@@ -28,12 +34,32 @@ class GameWorld:
         # TODO: make this a setting
         self.collision_cooldown = 2000
 
+        self.lidar_num_rays = 32
+        self.lidar_ray_angles = [i * 360.0 / self.lidar_num_rays for i in range(self.lidar_num_rays)]
 
         self.previous_positions = {
             self.playerOne.player_id: self.playerOne.position.copy(),
             self.playerTwo.player_id: self.playerTwo.position.copy()
         }
     
+    def get_map_files(self):
+        maps_dir = "maps"        
+        map_files = []
+
+        for file in os.listdir(maps_dir):
+            if file.endswith(".txt") and file.startswith("map"):
+                map_files.append(os.path.join(maps_dir, file))
+        
+        return map_files
+    
+    def load_random_map(self):
+        self.current_map_file = random.choice(self.map_files)
+        self.gameMap = Map(file_location=self.current_map_file)
+        
+        # Reset player positions based on new map
+        self.playerOne.set_position(self.gameMap.p1StartPos[0], self.gameMap.p1StartPos[1])
+        self.playerTwo.set_position(self.gameMap.p2StartPos[0], self.gameMap.p2StartPos[1])
+
     def distance_between_two_rects(self, pos1, pos2):
         return ((pos1.x - pos2.x) ** 2 + (pos1.y - pos2.y) ** 2) ** 0.5
 
@@ -99,17 +125,17 @@ class GameWorld:
         # self.map.update()
 
     def reset(self):
-        self.playerOne.set_position(map_settings.PLAYER_ONE_START[0], map_settings.PLAYER_ONE_START[1])
-        self.playerTwo.set_position(np.random.randint(map_settings.PLAYER_ONE_START[0]+map_settings.TILE_SIZE*2, (map_settings.MAP_WIDTH-2)*map_settings.TILE_SIZE), map_settings.PLAYER_TWO_START[1])
+        self.load_random_map()
+
         self.playerOne.isSeeker = True
         self.playerTwo.isSeeker = False
 
         return
     
     def draw_lidar_rays(self, surface, player_position):
-        angles = [0, 45, 90, 135, 180, 225, 270, 315]
         
-        for angle in angles:
+        
+        for angle in self.lidar_ray_angles:
             _, collision_point = self.cast_lidar_ray(player_position, angle)
             
             if collision_point:
@@ -140,7 +166,7 @@ class GameWorld:
         for player in self.players:
             players_surface = player.draw_to_surface(players_surface)
             if player.isSeeker:
-                self.draw_lidar_rays(players_surface, player.position)
+                self.draw_lidar_rays(players_surface, pygame.math.Vector2(player.position.x + settings.PLAYER_WIDTH/2, player.position.y + settings.PLAYER_HEIGHT/2))
         self.surfaces.append(players_surface)
 
         self.camera.draw_surfaces(self.surfaces)
@@ -183,10 +209,9 @@ class GameWorld:
         return bool(rect.clipline(startPos, endPos))
 
     def get_lidar_readings(self, player_position):
-        angles = [0, 45, 90, 135, 180, 225, 270, 315]  # 8 directions
         readings = []
         
-        for angle in angles:
+        for angle in self.lidar_ray_angles:
             distance, _ = self.cast_lidar_ray(player_position, angle)
             readings.append(distance)
         
@@ -241,7 +266,7 @@ class GameWorld:
         # positions of a few rectangles, or even better, just the distance to the rectangle
         
         # TODO: use the middle of the player instead of the top right
-        lidar_readings = self.get_lidar_readings(player.position)
+        lidar_readings = self.get_lidar_readings(pygame.math.Vector2(player.position.x + settings.PLAYER_WIDTH/2, player.position.y + settings.PLAYER_HEIGHT/2))
         # print(f"{lidar_readings}\n")
         state.extend(lidar_readings)
 
