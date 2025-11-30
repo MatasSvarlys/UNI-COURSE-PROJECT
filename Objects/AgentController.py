@@ -34,13 +34,18 @@ class AgentController:
         for agentName in self.agentNames:
             policy_path = os.path.join(file_path, f"{agentName}_policy.pth")
             if os.path.exists(policy_path):
+                print(policy_path)
                 self.agents[agentName].policy_network.load_state_dict(torch.load(policy_path))
+            else:
+                print("policy network not loaded")
             
             if rl_settings.TRAINING_MODE:
                 target_path = os.path.join(file_path, f"{agentName}_target.pth")
-                if os.path.exists(policy_path):
+                if os.path.exists(target_path):
+                    print(target_path)
                     self.agents[agentName].target_network.load_state_dict(torch.load(target_path))
-
+                else:
+                    print("target network not loaded")
 
     def save_agents(self, file_path, episode=None):
         os.makedirs(file_path, exist_ok=True)
@@ -93,10 +98,14 @@ class AgentController:
                 # len(self.frameHistory[agentName]) has to be 2*rl_settings.FRAME_SKIPPING_STEPS
                 recent_frames = list(self.frameHistory[agentName])
 
-                lastStackedState = np.concatenate(recent_frames[:rl_settings.FRAME_SKIPPING_STEPS])
-                currStackedState = np.concatenate(recent_frames[rl_settings.FRAME_SKIPPING_STEPS:])
-                experience = (lastStackedState, self.lastAction[agentName], currStackedState, agentRewardTensor, states.isTerminated)
-                self.agents[agentName].memory.append(experience)
+                lastStackedState = np.stack(recent_frames[:rl_settings.FRAME_SKIPPING_STEPS])
+                currStackedState = np.stack(recent_frames[rl_settings.FRAME_SKIPPING_STEPS:])
+                # print(len(recent_frames))
+                # print(lastStackedState.shape)
+                # print(currStackedState.shape)
+                # print(f"First frame in history: {lastStackedState[0][:3]}...")
+                # print(f"Last frame in history: {currStackedState[-1][:3]}...")
+
 
                 # If not training, just get the action and move on
                 if not rl_settings.TRAINING_MODE:
@@ -105,6 +114,9 @@ class AgentController:
                     keys = self.action_to_input(agentName, nextAgentAction, keys) 
                     # print(f"next agent action: {nextAgentAction}")
                     continue
+
+                experience = (lastStackedState, self.lastAction[agentName], currStackedState, agentRewardTensor, states.isTerminated)
+                self.agents[agentName].memory.append(experience)
 
                 # If the game was terminated, do nothing
                 if states.isTerminated:

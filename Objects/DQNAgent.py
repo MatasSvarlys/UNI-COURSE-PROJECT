@@ -10,10 +10,9 @@ class DQNetwork(nn.Module):
     def __init__(self, state_size, action_size):
         super(DQNetwork, self).__init__()
         self.input_size = state_size * rl_settings.FRAME_SKIPPING_STEPS
-        self.fc1 = nn.Linear(self.input_size, self.input_size*2)
-        self.fc2 = nn.Linear(self.input_size*2, self.input_size*4)
-        self.fc3 = nn.Linear(self.input_size*4, self.input_size*2)
-        self.fc4 = nn.Linear(self.input_size*2, action_size)
+        self.fc1 = nn.Linear(self.input_size, 64)
+        self.fc2 = nn.Linear(64, 32)
+        self.fc3 = nn.Linear(32, action_size)
         
     def forward(self, x):
         # print(f"forward: {x.shape}")
@@ -24,8 +23,7 @@ class DQNetwork(nn.Module):
         # print(x[0][1])
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        x = F.relu(self.fc3(x))
-        x = self.fc4(x)
+        x = self.fc3(x)
         return x
 
 class DQNAgent:
@@ -83,7 +81,7 @@ class DQNAgent:
             # then pick the highest evaluated one
             action_idx = torch.argmax(q_values, dim=1).item()
         # print(f"State: {state[1]}")
-        # print(f"Q-values: {q_values.cpu().numpy()[0]}")
+        print(f"Q-values: {q_values.cpu().numpy()[0]}")
 
         # translate to the action from the action map 
         action = self.action_map[action_idx]

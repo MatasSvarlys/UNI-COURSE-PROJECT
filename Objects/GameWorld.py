@@ -231,14 +231,16 @@ class GameWorld:
             player = self.playerTwo
             otherPlayer = self.playerOne
 
+        map_width = map_settings.MAP_WIDTH * map_settings.TILE_SIZE
+        map_height = map_settings.MAP_HEIGHT * map_settings.TILE_SIZE
         state = []
 
         # Player own state (6 values)
         state.extend([
-            player.position.x,
-            player.position.y,
-            player.movementVector.x,
-            player.movementVector.y,
+            player.position.x / map_width,
+            player.position.y / map_height,
+            player.movementVector.x / settings.PLAYER_MAX_SPEED,
+            player.movementVector.y / settings.PLAYER_MAX_FSPEED,
             float(player.grounded),  
             float(player.isSeeker)
         ])
@@ -250,10 +252,10 @@ class GameWorld:
         # dy = otherPlayer.position.y - player.position.y
 
         state.extend([
-            otherPlayer.position.x,
-            otherPlayer.position.y,
-            otherPlayer.movementVector.x,
-            otherPlayer.movementVector.y,
+            otherPlayer.position.x / map_width,
+            otherPlayer.position.y / map_height,
+            otherPlayer.movementVector.x / settings.PLAYER_MAX_SPEED,
+            otherPlayer.movementVector.y / settings.PLAYER_MAX_FSPEED,
         ])
 
         # Since a NN won't accept a rect, use only the corner position
@@ -267,8 +269,10 @@ class GameWorld:
         
         # TODO: use the middle of the player instead of the top right
         lidar_readings = self.get_lidar_readings(pygame.math.Vector2(player.position.x + settings.PLAYER_WIDTH/2, player.position.y + settings.PLAYER_HEIGHT/2))
+        normalized_lidar = [dist / 1000.0 for dist in lidar_readings]  # max_distance=1000
         # print(f"{lidar_readings}\n")
-        state.extend(lidar_readings)
+
+        state.extend(normalized_lidar)
 
         
         reward = player.reward
