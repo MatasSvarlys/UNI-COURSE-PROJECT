@@ -81,7 +81,7 @@ class DQNAgent:
             # then pick the highest evaluated one
             action_idx = torch.argmax(q_values, dim=1).item()
         # print(f"State: {state[1]}")
-        print(f"Q-values: {q_values.cpu().numpy()[0]}")
+        # print(f"Q-values: {q_values.cpu().numpy()[0]}")
 
         # translate to the action from the action map 
         action = self.action_map[action_idx]

@@ -29,10 +29,10 @@ class GameWorld:
 
             self.surfaces = []
 
-        # for seeker collisions
-        self.last_collision_time = 0
         # TODO: make this a setting
-        self.collision_cooldown = 2000
+        self.collision_cooldown = 100
+        # for seeker collisions
+        self.last_collision_time = self.collision_cooldown
 
         self.lidar_num_rays = 32
         self.lidar_ray_angles = [i * 360.0 / self.lidar_num_rays for i in range(self.lidar_num_rays)]
@@ -71,32 +71,42 @@ class GameWorld:
         
         return (player.position.x < buffer_zone or 
                 player.position.x > map_width_pixels - buffer_zone)
+    
+    def collided_with_seeker(self, player):
+        if(player.isSeeker):
+            player.reward += rl_settings.REWARD_FOR_WINNING
+        else:
+            player.reward += -rl_settings.REWARD_FOR_WINNING
 
     def update(self, keys):
         if states.isTerminated:
+            # print(f"started gameworld termination for episode {states.episodeCount}")
             self.reset()
             states.isTerminated = False
             states.startNewEpisode()
-            return
+            
         
-        now = pygame.time.get_ticks()
+        self.last_collision_time += 1
         self.distanceBetween = self.distance_between_two_rects(self.playerOne.position, self.playerTwo.position)
 
         # Update the players
         for player in self.players:
+            player.reward = 0
             player.update(keys, self.gameMap.get_nearby_collision_rects(player.hitbox))
-
+            
+            # calculate their rewards
             if self.distanceBetween <= 50:
                 player.reward += rl_settings.REWARD_FOR_PROXIMITY
-
-            # if self.is_player_out_of_bounds(player):
-            #     player.reward -= rl_settings.PENALTY_FOR_RUNNING_INTO_WALL
-
-
+            
+            if (player.isSeeker):
+                player.reward += -rl_settings.REWARD_FOR_EXISTING
+            else:
+                player.reward += rl_settings.REWARD_FOR_EXISTING
+        
             if (
                 self.players[0].hitbox.colliderect(self.players[1].hitbox)
                 and (self.players[0].isSeeker or self.players[1].isSeeker)
-                # and now - self.last_collision_time >= self.collision_cooldown
+                and self.last_collision_time >= self.collision_cooldown
             ):
                 if settings.DEBUG_MODE:
                     print(f"Seeker collided with Player")
@@ -106,20 +116,23 @@ class GameWorld:
                 # self.players[1].isSeeker = not self.players[1].isSeeker
                 
 
-                self.players[0].collided_with_seeker()
-                self.players[1].collided_with_seeker()
-
-                states.isTerminated = True
+                self.collided_with_seeker(self.players[0])
+                self.collided_with_seeker(self.players[1])
 
                 # Reset cooldown timer
-                self.last_collision_time = now
+                self.last_collision_time = 0
+                states.isTerminated = True
+            
+            # if player.isSeeker and player.reward > 0:
+            #     print(f"given positive reward: {player.reward}")
+            #     print(f"terminated: {states.isTerminated}")
+            #     print("eof gameworld update")
         
 
         if not rl_settings.TRAINING_MODE:
             # self.camera.follow_with_offset(self.players[0].hitbox, offset_x=0, offset_y=-settings.WINDOW_HEIGHT // 4)
             self.camera.follow_between_players(self.playerOne.hitbox, self.playerTwo.hitbox)
             self.camera.manual_nudge(0, -settings.WINDOW_HEIGHT // 4)
-
 
         # When map will have more logic, it will be updated here
         # self.map.update()
@@ -129,7 +142,11 @@ class GameWorld:
 
         self.playerOne.isSeeker = True
         self.playerTwo.isSeeker = False
+        
+        self.playerOne.reward = 0
+        self.playerTwo.reward = 0
 
+        self.last_collision_time = self.collision_cooldown
         return
     
     def draw_lidar_rays(self, surface, player_position):

@@ -37,21 +37,11 @@ class Player:
         self.grounded = False
         self.prev_direction = "right"  # Track the last direction for sprite flipping and turning around while moving
 
-    def collided_with_seeker(self):
-        if(self.isSeeker):
-            self.reward = rl_settings.REWARD_FOR_WINNING
-        else:
-            self.reward = -rl_settings.REWARD_FOR_WINNING
+
         # self.isSeeker = not self.isSeeker
 
     # Update the player state
     def update(self, keyInputs, collisionRects, dt=1.0):
-        
-        # set the reward every frame
-        if (self.isSeeker):
-            self.reward = -rl_settings.REWARD_FOR_EXISTING
-        else:
-            self.reward = rl_settings.REWARD_FOR_EXISTING
         
         # Movement vector from last frame
         last_movement = self.movementVector

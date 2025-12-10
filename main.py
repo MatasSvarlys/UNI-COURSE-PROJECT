@@ -55,6 +55,7 @@ while running:
     if keys[pygame.K_r]:
         states.isTerminated = True
 
+
     statesForAgents = {}
 
     if rl_settings.RL_CONTROL["player_one"]:
@@ -63,7 +64,7 @@ while running:
     if rl_settings.RL_CONTROL["player_two"]:
         # the 1 here looks awful, probably better to remake it with a string name
         statesForAgents["player_two"] = gameWorld.get_state_for_player(1) 
-
+    
     # TODO: only get the agent key here
     keys = AgentController.step_all_agents(statesForAgents, keys)
 

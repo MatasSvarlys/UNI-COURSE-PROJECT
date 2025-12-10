@@ -22,8 +22,9 @@ class AgentController:
         self.episodeRewards = {}
         self.lastAction = {}
         
-        self.episodeStepCount = 0
         self.randFrames = random.randrange((2 * rl_settings.FRAME_SKIPPING_STEPS) * rl_settings.FRAME_SKIPPING_STEPS, (3 * rl_settings.FRAME_SKIPPING_STEPS) * rl_settings.FRAME_SKIPPING_STEPS)
+        self.OptimizeRateSteps = 0
+        self.SyncRateSteps = 0
 
         self.setup_agents()
 
@@ -67,14 +68,18 @@ class AgentController:
         currEpsilon = states.epsilon
 
         for agentName in self.agentNames:
-
+            
             agentReward = statesForAgents[agentName][1]
             states.rewardsPerEpisode[agentName][states.episodeCount] += agentReward
+            # if agentReward > 0:
+            #     print(f"positive reward for agent: {agentReward}")
+            #     print(f"total reward: {states.rewardsPerEpisode[agentName][states.episodeCount]}")
 
             # Only act once every n frames
             if states.episodeFrame % rl_settings.FRAME_SKIPPING_STEPS == 0:
                 
-                self.episodeStepCount += 1
+                self.OptimizeRateSteps += 1
+                self.SyncRateSteps += 1
 
                 # Get the current state of the agent 
                 currentState = statesForAgents[agentName][0]
@@ -148,9 +153,13 @@ class AgentController:
             # All other frames repeat the last action
             else:
                 keys = self.action_to_input(agentName, rl_settings.ACTIONS[self.lastAction[agentName]], keys) 
-        
+            
+            # if agentReward > 0:
+            #     print(f"eof agent step in episode {states.episodeCount}")
         # Every few steps update the models   
-        if self.episodeStepCount % rl_settings.NETWORK_LEARN_RATE == 0 and rl_settings.TRAINING_MODE and states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES:
+        if self.OptimizeRateSteps >= rl_settings.NETWORK_LEARN_RATE and rl_settings.TRAINING_MODE and states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES:
+            self.OptimizeRateSteps = 0
+            
             for agentName in self.agents:
                 agent = self.agents[agentName]
                 # If enough experience has been collected
@@ -159,19 +168,15 @@ class AgentController:
                     # Optimize the policy network
                     agent.optimize(mini_batch, agent.policy_network, agent.target_network)
 
-                    if self.episodeStepCount % (rl_settings.NETWORK_LEARN_RATE*rl_settings.NETWORK_SYNC_RATE) == 0:
-                        agent.target_network.load_state_dict(agent.policy_network.state_dict())
-
 
         if states.isTerminated:
-            self.episodeStepCount = 0
             self.post_episode_actions()
             # print("Terminated, starting episode count again")
         
         return keys
     
     def post_episode_actions(self):
-        print(f"{states.episodeCount}: player one - {states.epsilon} - {states.rewardsPerEpisode["player_one"][states.episodeCount - 1]}")
+        print(f"{states.episodeCount}: epsilon {states.epsilon}. episode reward {states.rewardsPerEpisode["player_one"][states.episodeCount]}")
         
         if states.episodeCount % 10000 == 0 and rl_settings.TRAINING_MODE:
             self.save_agents("saves", states.episodeCount)
@@ -184,11 +189,9 @@ class AgentController:
 
         for agentName in self.agents.keys():
             agent = self.agents[agentName]
-            # If enough experience has been collected
-            if len(agent.memory) > rl_settings.MINI_BATCH and rl_settings.TRAINING_MODE and states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES: 
-                mini_batch = agent.memory.sample(rl_settings.MINI_BATCH)
-                agent.optimize(mini_batch, agent.policy_network, agent.target_network)
-                agent.target_network.load_state_dict(agent.policy_network.state_dict())
+            if self.SyncRateSteps >= rl_settings.NETWORK_SYNC_RATE and len(agent.memory) > rl_settings.MINI_BATCH and rl_settings.TRAINING_MODE and states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES: 
+                    self.total_steps = 0    
+                    agent.target_network.load_state_dict(agent.policy_network.state_dict())
 
 
     def action_to_idx(self, action):

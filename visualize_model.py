@@ -1,181 +1,334 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
-import matplotlib.patches as patches
+import pygame
 import torch
-import os
-from Settings import rl_settings
+from Settings import rl_settings, global_settings as settings, map_settings
 from Objects.DQNAgent import DQNAgent
-from Objects.GameWorld import GameWorld
-from Settings import global_settings as settings
+from Objects.Map import Map
+import os
 
-def create_state_for_player(p1_pos, p2_pos, p1_vel, p2_vel):
+
+class DQNVisualizer:
     """
-    Create a state array matching the format expected by the trained model.
-    Based on the get_state_for_player method in GameWorld.py
+    Visualizes DQN Q-values as a heatmap overlay in the game world.
+    Shows what action the agent prefers at each position.
     """
-    # State format: [p1_x, p1_y, p1_vel_x, p1_vel_y, grounded, is_seeker, p2_x, p2_y, p2_vel_x, p2_vel_y, lidar_readings...]
-    state = []
+    
+    def __init__(self, agent, game_map, grid_resolution=20):
+        """
+        Args:
+            agent: Trained DQNAgent to visualize
+            game_map: Map object containing collision rects and lidar data
+            grid_resolution: Number of grid cells in each dimension (lower = faster but less detailed)
+        """
+        self.agent = agent
+        self.game_map = game_map
+        self.grid_resolution = grid_resolution
+        
+        # Map dimensions
+        self.map_width = map_settings.MAP_WIDTH * map_settings.TILE_SIZE
+        self.map_height = map_settings.MAP_HEIGHT * map_settings.TILE_SIZE
+        
+        # Lidar settings (match GameWorld)
+        self.lidar_num_rays = 32
+        self.lidar_ray_angles = [i * 360.0 / self.lidar_num_rays for i in range(self.lidar_num_rays)]
+        
+        # Color scheme for actions (RGB)
+        self.action_colors = {
+            0: (100, 100, 100),    # NOOP - Gray
+            1: (0, 100, 255),      # LEFT - Blue
+            2: (255, 100, 0),      # RIGHT - Orange
+            3: (0, 255, 100),      # JUMP - Green
+            4: (100, 0, 255),      # LEFT_JUMP - Purple
+            5: (255, 255, 0),      # RIGHT_JUMP - Yellow
+        }
+        
+        # Pre-compute grid positions
+        self.grid_x = np.linspace(0, self.map_width, grid_resolution)
+        self.grid_y = np.linspace(0, self.map_height, grid_resolution)
+        self.cell_width = self.map_width / grid_resolution
+        self.cell_height = self.map_height / grid_resolution
+        
+        # Cache for heatmap (updated when needed)
+        self.cached_heatmap = None
+        self.cache_params = None
+        
+    def cast_lidar_ray(self, start_pos, angle, max_distance=1000):
+        """Cast a single lidar ray and return distance to nearest collision."""
+        angle_rad = np.radians(angle)
+        end_x = start_pos[0] + max_distance * np.cos(angle_rad)
+        end_y = start_pos[1] + max_distance * np.sin(angle_rad)
+        
+        min_distance = max_distance
+        
+        for rect in self.game_map.collision_rects:
+            clipped = rect.clipline(start_pos, (end_x, end_y))
+            if clipped:
+                point1, point2 = clipped
+                d1 = np.sqrt((point1[0] - start_pos[0])**2 + (point1[1] - start_pos[1])**2)
+                d2 = np.sqrt((point2[0] - start_pos[0])**2 + (point2[1] - start_pos[1])**2)
+                min_distance = min(min_distance, d1, d2)
+        
+        return min_distance
+    
+    def get_lidar_readings(self, player_pos):
+        """Generate lidar readings for a player position."""
+        player_center = (
+            player_pos[0] + settings.PLAYER_WIDTH / 2,
+            player_pos[1] + settings.PLAYER_HEIGHT / 2
+        )
+        
+        readings = []
+        for angle in self.lidar_ray_angles:
+            distance = self.cast_lidar_ray(player_center, angle)
+            readings.append(distance / 1000.0)  # Normalize
+        
+        return readings
+    
+    def create_state(self, p1_pos, p2_pos, p1_vel=(0, 0), p2_vel=(0, 0), grounded=0.0):
+        """Create state array matching the training format."""
+        state = []
+        
+        # Player 1 state (6 values) - normalized
+        state.extend([
+            p1_pos[0] / self.map_width,
+            p1_pos[1] / self.map_height,
+            p1_vel[0] / settings.PLAYER_MAX_SPEED,
+            p1_vel[1] / settings.PLAYER_MAX_FSPEED,
+            float(grounded),
+            1.0  # is_seeker
+        ])
+        
+        # Player 2 state (4 values) - normalized
+        state.extend([
+            p2_pos[0] / self.map_width,
+            p2_pos[1] / self.map_height,
+            p2_vel[0] / settings.PLAYER_MAX_SPEED,
+            p2_vel[1] / settings.PLAYER_MAX_FSPEED,
+        ])
+        
+        # Lidar readings (32 values)
+        lidar_readings = self.get_lidar_readings(p1_pos)
+        state.extend(lidar_readings)
+        
+        return np.array(state, dtype=np.float32)
+    
+    def get_action_and_qvalues(self, p1_pos, p2_pos, p1_vel=(0, 0), p2_vel=(0, 0)):
+        """Get the preferred action and all Q-values for a position."""
+        state = self.create_state(p1_pos, p2_pos, p1_vel, p2_vel)
+        
+        # Stack frames (repeat same state for frame history)
+        stacked_state = np.tile(state, rl_settings.FRAME_SKIPPING_STEPS)
+        state_tensor = torch.FloatTensor(stacked_state).unsqueeze(0)
+        
+        with torch.no_grad():
+            q_values = self.agent.policy_network(state_tensor)
+            action_idx = torch.argmax(q_values, dim=1).item()
+            q_vals = q_values.cpu().numpy()[0]
+        
+        return action_idx, q_vals
+    
+    def generate_heatmap(self, p2_pos, p1_vel=(0, 0), p2_vel=(0, 0)):
+        """Generate action preference heatmap across the entire map."""
+        # Check if we can use cached version
+        cache_key = (p2_pos, p1_vel, p2_vel)
+        if self.cache_params == cache_key and self.cached_heatmap is not None:
+            return self.cached_heatmap
+        
+        heatmap = np.zeros((self.grid_resolution, self.grid_resolution), dtype=int)
+        
+        for i, x in enumerate(self.grid_x):
+            for j, y in enumerate(self.grid_y):
+                p1_pos = (x, y)
+                action_idx, _ = self.get_action_and_qvalues(p1_pos, p2_pos, p1_vel, p2_vel)
+                heatmap[j, i] = action_idx
+        
+        self.cached_heatmap = heatmap
+        self.cache_params = cache_key
+        return heatmap
+    
+    def draw_to_surface(self, surface, p2_pos, p1_vel=(0, 0), p2_vel=(0, 0), alpha=128):
+        """
+        Draw the Q-value heatmap as a colored overlay on the given surface.
+        
+        Args:
+            surface: Pygame surface to draw on
+            p2_pos: Position of player 2 (the hider)
+            p1_vel: Velocity of player 1 (optional)
+            p2_vel: Velocity of player 2 (optional)
+            alpha: Transparency (0-255, default 128 for semi-transparent)
+        """
+        heatmap = self.generate_heatmap(p2_pos, p1_vel, p2_vel)
+        
+        # Create a temporary surface for the heatmap with alpha channel
+        heatmap_surface = pygame.Surface((self.map_width, self.map_height), pygame.SRCALPHA)
+        
+        for i in range(self.grid_resolution):
+            for j in range(self.grid_resolution):
+                action = heatmap[j, i]
+                color = self.action_colors.get(action, (128, 128, 128))
+                
+                # Add alpha channel
+                color_with_alpha = (*color, alpha)
+                
+                # Draw rectangle for this grid cell
+                rect = pygame.Rect(
+                    i * self.cell_width,
+                    j * self.cell_height,
+                    self.cell_width,
+                    self.cell_height
+                )
+                pygame.draw.rect(heatmap_surface, color_with_alpha, rect)
+        
+        # Blit the heatmap surface onto the main surface
+        surface.blit(heatmap_surface, (0, 0))
+        
+        return surface
+    
+    def draw_legend(self, surface, x=10, y=10):
+        """Draw a legend showing what each color means."""
+        font = pygame.font.Font(None, 24)
+        
+        for i, (action_idx, color) in enumerate(self.action_colors.items()):
+            action_name = rl_settings.ACTIONS[action_idx]
+            
+            # Draw color box
+            box_rect = pygame.Rect(x, y + i * 30, 20, 20)
+            pygame.draw.rect(surface, color, box_rect)
+            pygame.draw.rect(surface, (255, 255, 255), box_rect, 1)  # Border
+            
+            # Draw action name
+            text = font.render(action_name, True, (255, 255, 255))
+            surface.blit(text, (x + 30, y + i * 30 + 2))
 
-    # Player 1 own state (6 values)
-    state.extend([
-        p1_pos[0],  # p1_x
-        p1_pos[1],  # p1_y
-        p1_vel[0],  # p1_vel_x
-        p1_vel[1],  # p1_vel_y
-        0.0,        # grounded (assuming False for visualization)
-        1.0         # is_seeker (Player 1 is seeker)
-    ])
-
-    # Player 2 relative state (4 values)
-    state.extend([
-        p2_pos[0],  # p2_x
-        p2_pos[1],  # p2_y
-        p2_vel[0],  # p2_vel_x
-        p2_vel[1],  # p2_vel_y
-    ])
-
-    # Add lidar readings - for visualization we'll use placeholder values
-    # In a real scenario, we'd need to generate proper lidar readings based on the map
-    # But for this visualization we'll just add some reasonable placeholder values
-    num_lidar_rays = 32  # From GameWorld initialization
-    lidar_readings = [500.0] * num_lidar_rays  # Placeholder values
-    state.extend(lidar_readings)
-
-    return np.array(state, dtype=np.float32)
 
 def load_trained_agent():
-    """
-    Load the trained DQN agent from the loads folder.
-    """
-    # Initialize the agent with the correct state size
-    # Based on the GameWorld state format: 6 (p1 own state) + 4 (p2 state) + 32 (lidar) = 42
-    state_size = 6 + 4 + 32  # 42 total features
+    """Load a trained DQN agent from the loads folder."""
+    state_size = 6 + 4 + 32  # Base state size
     action_size = rl_settings.ACTION_SPACE_SIZE
-
-    # Create agent
+    
     agent = DQNAgent(state_size, action_size, isTraining=False)
-
-    # Load the trained model
+    
     model_path = "loads/player_one_policy.pth"
     if os.path.exists(model_path):
-        agent.policy_network.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
-        print(f"Successfully loaded model from {model_path}")
+        agent.policy_network.load_state_dict(
+            torch.load(model_path, map_location=torch.device('cpu'))
+        )
+        print(f"Loaded model from {model_path}")
     else:
-        print(f"Warning: Model file {model_path} not found. Using untrained model.")
-
-    # Set to evaluation mode
+        print(f"Warning: {model_path} not found")
+    
     agent.policy_network.eval()
-
     return agent
 
-def get_action_for_position(agent, p1_pos, p2_pos, p1_vel, p2_vel):
+
+# Example usage for integration into GameWorld
+def add_visualization_to_gameworld():
     """
-    Get the action the trained model would take at a given position of Player 1,
-    given Player 2's position and both players' velocities.
-    """
-    # Create the state for the agent
-    state = create_state_for_player(p1_pos, p2_pos, p1_vel, p2_vel)
-
-    # Convert to tensor and add batch dimension
-    state_tensor = torch.FloatTensor(state).unsqueeze(0)
-
-    # Get the Q-values from the model
-    with torch.no_grad():
-        q_values = agent.policy_network(state_tensor)
-        action_idx = torch.argmax(q_values, dim=1).item()
-
-    return action_idx
-
-def generate_heatmap(agent, p2_pos, p1_vel, p2_vel, grid_size=50):
-    """
-    Generate a heatmap showing the action the model would take at each position of Player 1,
-    given Player 2's position and both players' velocities.
-    """
-    # Define the game space
-    x_range = np.linspace(0, 600, grid_size)
-    y_range = np.linspace(0, 400, grid_size)
-
-    # Create the heatmap
-    heatmap = np.zeros((grid_size, grid_size))
-
-    for i, x in enumerate(x_range):
-        for j, y in enumerate(y_range):
-            # For each position of Player 1, determine the action
-            p1_pos = (x, y)
-            action = get_action_for_position(agent, p1_pos, p2_pos, p1_vel, p2_vel)
-            heatmap[j, i] = action  # Note: j corresponds to y-axis, i to x-axis
-
-    return heatmap, x_range, y_range
-
-def visualize_heatmap(heatmap, x_range, y_range, p2_pos, p1_vel, p2_vel):
-    """
-    Visualize the heatmap with player positions and velocity vectors.
-    """
-    # Define colors for each action based on the ACTIONS list
-    num_actions = len(rl_settings.ACTIONS)
-    colors = ['white', 'blue', 'red', 'yellow', 'green', 'orange'][:num_actions]  # Different color for each action
-    cmap = ListedColormap(colors)
-
-    fig, ax = plt.subplots(figsize=(12, 8))
-
-    # Create the heatmap
-    im = ax.imshow(heatmap, extent=[x_range[0], x_range[-1], y_range[-1], y_range[0]],
-                   aspect='auto', cmap=cmap, vmin=0, vmax=num_actions-1)
-
-    # Plot Player 2 position (Player 1 positions are represented by the heatmap)
-    ax.plot(p2_pos[0], p2_pos[1], 'ro', markersize=10, label='Player 2')
-
-    # Add velocity vectors (scale for visibility)
-    scale_factor = 5
-    ax.arrow(p2_pos[0], p2_pos[1], p2_vel[0]*scale_factor, p2_vel[1]*scale_factor,
-             head_width=10, head_length=8, fc='red', ec='red', alpha=0.7, label='P2 Velocity')
-    ax.arrow(p2_pos[0]-50, p2_pos[1], p1_vel[0]*scale_factor, p1_vel[1]*scale_factor,
-             head_width=10, head_length=8, fc='blue', ec='blue', alpha=0.7, label='P1 Velocity')
-
-    ax.set_xlabel('X Position')
-    ax.set_ylabel('Y Position')
-    ax.set_title(f'Action Heatmap for Player 1\nPlayer 2 at {p2_pos}, Velocities: P1={p1_vel}, P2={p2_vel}')
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-
-    # Add colorbar with action labels
-    cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label('Action')
-    cbar.set_ticks(range(num_actions))
-    cbar.set_ticklabels(rl_settings.ACTIONS)
-
-    plt.tight_layout()
-    plt.show()
-
-def main():
-    print("Player Action Heatmap Generator")
-    print(f"Available actions: {rl_settings.ACTIONS}")
-    print("Enter Player 2's position and both players' velocities:")
-
-    # Load the trained agent
-    print("Loading trained model...")
-    agent = load_trained_agent()
-
-    # Get user input
-    p2_x = 400
-    p2_y = 200
-    p1_vx = 0
-    p1_vy = 0
-    p2_vx = 0
-    p2_vy = 0
+    Example of how to integrate this into your GameWorld class.
+    Add this to your GameWorld.__init__:
     
-    p2_pos = (p2_x, p2_y)
-    p1_vel = (p1_vx, p1_vy)
-    p2_vel = (p2_vx, p2_vy)
+    if not rl_settings.TRAINING_MODE and global_settings.SHOW_Q_VISUALIZATION:
+        from visualize_model_v2 import load_trained_agent, DQNVisualizer
+        agent = load_trained_agent()
+        self.visualizer = DQNVisualizer(agent, self.gameMap, grid_resolution=30)
+    else:
+        self.visualizer = None
+    
+    Then in your GameWorld.draw() method, before drawing players:
+    
+    if self.visualizer:
+        # Draw Q-value heatmap as background layer
+        viz_surface = self.baseSurface.copy()
+        p2_pos = (self.playerTwo.position.x, self.playerTwo.position.y)
+        p1_vel = (self.playerOne.movementVector.x, self.playerOne.movementVector.y)
+        p2_vel = (self.playerTwo.movementVector.x, self.playerTwo.movementVector.y)
+        
+        viz_surface = self.visualizer.draw_to_surface(
+            viz_surface, p2_pos, p1_vel, p2_vel, alpha=100
+        )
+        self.surfaces.append(viz_surface)
+        
+        # Optionally draw legend on a UI surface
+        self.visualizer.draw_legend(players_surface, x=10, y=10)
+    """
+    pass
 
-    print(f"\nGenerating heatmap for Player 2 at {p2_pos} with velocities P1={p1_vel}, P2={p2_vel}...")
-
-    # Generate the heatmap using the trained model
-    heatmap, x_range, y_range = generate_heatmap(agent, p2_pos, p1_vel, p2_vel)
-
-    # Visualize the heatmap
-    visualize_heatmap(heatmap, x_range, y_range, p2_pos, p1_vel, p2_vel)
 
 if __name__ == "__main__":
-    main()
+    # Standalone test
+    print("Loading agent and map...")
+    agent = load_trained_agent()
+    
+    # Load a map
+    map_files = [f for f in os.listdir("maps") if f.endswith(".txt") and f.startswith("map")]
+    for idx, map in enumerate(map_files):
+        print(f"{idx}: {map}")
+    if map_files:
+        game_map = Map(file_location=os.path.join("maps", map_files[2]))
+        print(f"Loaded map: {map_files[1]}")
+    else:
+        print("No maps found!")
+        exit(1)
+    
+    # Create visualizer
+    visualizer = DQNVisualizer(agent, game_map, grid_resolution=30)
+    
+    # Initialize pygame
+    pygame.init()
+    screen = pygame.display.set_mode((
+        map_settings.MAP_WIDTH * map_settings.TILE_SIZE,
+        map_settings.MAP_HEIGHT * map_settings.TILE_SIZE
+    ))
+    pygame.display.set_caption("DQN Q-Value Visualization")
+    
+    # Use player 2 start position
+    p2_pos = game_map.p2StartPos
+    p1_vel = (0, 0)
+    p2_vel = (0, 0)
+    
+    clock = pygame.time.Clock()
+    running = True
+
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+        
+        # Handle arrow keys to move p2 position
+        keys = pygame.key.get_pressed()
+        move_speed = 5
+        if keys[pygame.K_LEFT]:
+            p2_pos = (max(0, p2_pos[0] - move_speed), p2_pos[1])
+        if keys[pygame.K_RIGHT]:
+            p2_pos = (min(map_settings.MAP_WIDTH * map_settings.TILE_SIZE - 32, p2_pos[0] + move_speed), p2_pos[1])
+        if keys[pygame.K_UP]:
+            p2_pos = (p2_pos[0], max(0, p2_pos[1] - move_speed))
+        if keys[pygame.K_DOWN]:
+            p2_pos = (p2_pos[0], min(map_settings.MAP_HEIGHT * map_settings.TILE_SIZE - 32, p2_pos[1] + move_speed))
+        
+        # Clear screen
+        screen.fill((0, 0, 0))
+        
+        # Draw map
+        for rect, color in game_map.drawRects:
+            pygame.draw.rect(screen, color, rect)
+        
+        # Draw Q-value visualization
+        visualizer.draw_to_surface(screen, p2_pos, p1_vel, p2_vel, alpha=150)
+        
+        # Draw player 2 position
+        pygame.draw.circle(screen, (255, 0, 0), 
+                         (int(p2_pos[0] + settings.PLAYER_WIDTH/2), 
+                          int(p2_pos[1] + settings.PLAYER_HEIGHT/2)), 
+                         10)
+        
+        # Draw legend
+        visualizer.draw_legend(screen, x=10, y=10)
+        
+        pygame.display.flip()
+        clock.tick(30)
+    
+    pygame.quit()

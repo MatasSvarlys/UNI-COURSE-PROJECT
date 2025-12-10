@@ -17,3 +17,4 @@ def startNewEpisode():
     rewardsPerEpisode["player_two"].append(rl_settings.START_REWARD)
     endEpisode = True
     
+    
