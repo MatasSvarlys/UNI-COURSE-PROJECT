@@ -18,19 +18,19 @@ ACTIONS = [
 
 ACTION_SPACE_SIZE = len(ACTIONS)
 
-MINI_BATCH = 32
-MEMORY_SIZE = 50000
+MINI_BATCH = 64
+MEMORY_SIZE = 25000
 EXPERIENCE_COLLECTION_EPISODES = 5000
 
 # every this amount of actions, optimize the policy network
 NETWORK_LEARN_RATE = 10
 # every this amount of policy network optimizations copy the policy network into the target network
-NETWORK_SYNC_RATE = 2000
+NETWORK_SYNC_RATE = 1000
 
 DISCOUNT_GAMA = 0.95
 LEARNING_RATE = 0.0005
 
-EPSILON_DECAY = 0.00001
+EPSILON_DECAY = 0.0001
 MIN_EPSILON = 0.05
 
 FRAME_SKIPPING_STEPS = 4
