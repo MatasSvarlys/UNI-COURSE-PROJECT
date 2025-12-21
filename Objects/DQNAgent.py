@@ -120,7 +120,17 @@ class DQNAgent:
         terminations = torch.tensor(terminations).float().to(self.device)
 
         with torch.no_grad():
-            targetQ = rewards + (1-terminations) * rl_settings.DISCOUNT_GAMA * target_dqn(newStates).max(dim=1)[0]
+            # TODO: make this a setting
+
+            doubleDQN = True
+
+            if doubleDQN:
+                bestActions = policy_dqn(newStates).argmax(dim=1)
+
+                targetQ = rewards + (1-terminations) * rl_settings.DISCOUNT_GAMA * target_dqn(newStates).gather(dim=1, index=bestActions.unsqueeze(dim=1)).squeeze()
+
+            else:
+                targetQ = rewards + (1-terminations) * rl_settings.DISCOUNT_GAMA * target_dqn(newStates).max(dim=1)[0]
 
 
         currQ = policy_dqn(states).gather(dim=1, index=actions.unsqueeze(dim=1)).squeeze()

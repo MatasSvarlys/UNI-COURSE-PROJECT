@@ -12,10 +12,10 @@ from Settings import rl_settings
 
 class GameWorld:
     def __init__(self):
-        self.map_files = self.get_map_files()
-        self.current_map_file = random.choice(self.map_files)
+        self._preload_maps()
         
-        self.gameMap = Map(file_location=self.current_map_file)
+        self.current_map_file = random.choice(self.map_files)
+        self.gameMap = self.map_cache[self.current_map_file]
         
         # TODO: make players get generated in general area and without separate objects
         self.playerOne = Player(self.gameMap.p1StartPos[0], self.gameMap.p1StartPos[1], 0, True)
@@ -52,9 +52,27 @@ class GameWorld:
         
         return map_files
     
+    def _preload_maps(self):
+        maps_dir = "maps"
+        self.map_files = []
+        
+        for file in os.listdir(maps_dir):
+            if file.endswith(".txt") and file.startswith("map"):
+                file_path = os.path.join(maps_dir, file)
+                self.map_files.append(file_path)
+        
+        # Load all maps into cache
+        print(f"Preloading {len(self.map_files)} maps...")
+        self.map_cache = {}
+        for map_file in self.map_files:
+            self.map_cache[map_file] = Map(file_location=map_file)
+        print(f"Preloaded {len(self.map_cache)} maps successfully.")
+    
+
     def load_random_map(self):
         self.current_map_file = random.choice(self.map_files)
-        self.gameMap = Map(file_location=self.current_map_file)
+        # Get preloaded map instead of creating new one
+        self.gameMap = self.map_cache[self.current_map_file]
         
         # Reset player positions based on new map
         self.playerOne.set_position(self.gameMap.p1StartPos[0], self.gameMap.p1StartPos[1])

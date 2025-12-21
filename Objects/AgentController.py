@@ -66,7 +66,8 @@ class AgentController:
 
     def step_all_agents(self, statesForAgents, keys):
         currEpsilon = states.epsilon
-
+        states.epsilon = max(states.epsilon - rl_settings.EPSILON_DECAY, rl_settings.MIN_EPSILON)
+        
         for agentName in self.agentNames:
             
             agentReward = statesForAgents[agentName][1]
