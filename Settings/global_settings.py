@@ -36,3 +36,5 @@ DEBUG_MODE = False
 
 # Gen collision consts
 PRECISION_MULTIPLYER = 2
+
+HEADLESS_MODE = True

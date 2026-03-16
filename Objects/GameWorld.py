@@ -23,7 +23,7 @@ class GameWorld:
         self.playerTwo = Player(self.gameMap.p2StartPos[0], self.gameMap.p2StartPos[1], 1)
         self.players = [self.playerOne, self.playerTwo]
 
-        if not rl_settings.TRAINING_MODE:
+        if not rl_settings.TRAINING_MODE and not settings.HEADLESS_MODE:
             self.camera = Camera()
             self.baseSurface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), pygame.SRCALPHA)
 
@@ -148,6 +148,8 @@ class GameWorld:
         
 
         if not rl_settings.TRAINING_MODE:
+            if settings.HEADLESS_MODE:
+                return
             # self.camera.follow_with_offset(self.players[0].hitbox, offset_x=0, offset_y=-settings.WINDOW_HEIGHT // 4)
             self.camera.follow_between_players(self.playerOne.hitbox, self.playerTwo.hitbox)
             self.camera.manual_nudge(0, -settings.WINDOW_HEIGHT // 4)
@@ -200,8 +202,8 @@ class GameWorld:
         players_surface = self.baseSurface.copy()
         for player in self.players:
             players_surface = player.draw_to_surface(players_surface)
-            if player.isSeeker:
-                self.draw_lidar_rays(players_surface, pygame.math.Vector2(player.position.x + settings.PLAYER_WIDTH/2, player.position.y + settings.PLAYER_HEIGHT/2))
+            # if player.isSeeker:
+            #     self.draw_lidar_rays(players_surface, pygame.math.Vector2(player.position.x + settings.PLAYER_WIDTH/2, player.position.y + settings.PLAYER_HEIGHT/2))
         self.surfaces.append(players_surface)
 
         self.camera.draw_surfaces(self.surfaces)

@@ -2,3 +2,9 @@
 **/__pycache__
 ./object_relations.txt
 **/saves
+plot_loss.py
+q_analysis.py
+q_values_log.txt
+**/q-values
+training_loss_analysis.png
+loss_log.txt

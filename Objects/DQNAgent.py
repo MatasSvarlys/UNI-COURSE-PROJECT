@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-import torch_directml
+# import torch_directml
 import torch.nn as nn
 import torch.nn.functional as F
 from Settings import global_settings, rl_settings
@@ -77,7 +77,9 @@ class DQNAgent:
         with torch.no_grad():
             # pass the tensor into the network and get its calculated q values
             q_values = self.policy_network(state_tensor)
-
+            # print(q_values)
+            with open('q_values_log.txt', 'a') as f:
+                f.write(f"{q_values.cpu().numpy()[0]}\n")
             # then pick the highest evaluated one
             action_idx = torch.argmax(q_values, dim=1).item()
         # print(f"State: {state[1]}")
@@ -139,6 +141,10 @@ class DQNAgent:
             print(f"Current Q values: {currQ} -> target Q values: {targetQ}")
         
         loss = self.loss_fn(currQ, targetQ)
+        
+        # Save loss to file
+        # with open('loss_log.txt', 'a') as f:
+        #     f.write(f"{loss.item()}\n")
 
         # Optimize the model
         self.optimizer.zero_grad()  # Clear gradients

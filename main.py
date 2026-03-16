@@ -3,6 +3,7 @@ import sys
 from Objects.GameWorld import GameWorld
 from Objects.AgentController import AgentController
 from Settings import rl_settings
+from Settings import global_settings
 import Objects.States as states
 
 
@@ -13,13 +14,17 @@ pygame.init()
 clock = pygame.time.Clock()
 running = True
 
-# Initialize game world
+# Initialize game world``
 gameWorld = GameWorld()
 
 # Initialize the RL agents
 # TODO: make this automatic based on settings
 AgentController = AgentController(gameWorld.get_state_array_size(), ["player_one"])
+# AgentController = AgentController(gameWorld.get_state_array_size(), [])
 # print(gameWorld.get_state_array_size())
+# N = 1000001
+# states.rewardsPerEpisode["player_one"] = [0] * N
+# states.rewardsPerEpisode["player_two"] = [0] * N
 states.rewardsPerEpisode["player_one"].append(rl_settings.START_REWARD)
 states.rewardsPerEpisode["player_two"].append(rl_settings.START_REWARD)
 
@@ -33,6 +38,9 @@ while running:
     if states.episodeFrame >= 600:
         states.isTerminated = True
     
+    if states.episodeCount >= 100:
+        pygame.quit()
+        sys.exit()
     
     # Event handling
     k = pygame.key.get_pressed()
@@ -52,8 +60,11 @@ while running:
             running = False
     
     # Quick reset
-    if keys[pygame.K_r]:
+    if keys[pygame.K_r] and not states.rKeyPressed:
         states.isTerminated = True
+        states.rKeyPressed = True
+    elif not keys[pygame.K_r]:
+        states.rKeyPressed = False
 
 
     statesForAgents = {}
@@ -74,6 +85,8 @@ while running:
     # TODO: update the agent memory here 
 
     if not rl_settings.TRAINING_MODE:
+        if global_settings.HEADLESS_MODE:
+            continue
         # Draw the game world
         gameWorld.draw()
         

@@ -16,5 +16,7 @@ def startNewEpisode():
     rewardsPerEpisode["player_one"].append(rl_settings.START_REWARD)
     rewardsPerEpisode["player_two"].append(rl_settings.START_REWARD)
     endEpisode = True
+    with open("q_values_log.txt", "a") as f:
+        f.write(f"Episode {episodeCount - 1} ended with reward: {rewardsPerEpisode['player_one'][-2] if len(rewardsPerEpisode['player_one']) > 1 else 'N/A'}\n")
     
     
