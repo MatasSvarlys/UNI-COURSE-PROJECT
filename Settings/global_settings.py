@@ -1,10 +1,13 @@
 
 # Screen
+from Settings import map_settings
+
 #TODO: make screen size non-constant
-WINDOW_WIDTH = 600
-WINDOW_HEIGHT = 400
-DISPLAY_WIDTH = 1200
-DISPLAY_HEIGHT = 800
+
+WINDOW_WIDTH = map_settings.MAP_WIDTH * map_settings.TILE_SIZE
+WINDOW_HEIGHT = map_settings.MAP_HEIGHT * map_settings.TILE_SIZE
+DISPLAY_WIDTH = WINDOW_WIDTH * 2
+DISPLAY_HEIGHT = WINDOW_HEIGHT * 2
 
 # Color constants (TODO: make this to sprites down the line)
 BLACK = (0, 0, 0)
@@ -37,4 +40,4 @@ DEBUG_MODE = False
 # Gen collision consts
 PRECISION_MULTIPLYER = 2
 
-HEADLESS_MODE = True
+HEADLESS_MODE = False

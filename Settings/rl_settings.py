@@ -1,11 +1,11 @@
 # True for agent control, False for human
 RL_CONTROL = {
     "player_one": True,
-    "player_two": False,
+    "player_two": True,
 }
 
-TRAINING_MODE = False
-LOAD_MODEL = True
+TRAINING_MODE = True
+LOAD_MODEL = False
 
 ACTIONS = [
     "NOOP",
@@ -33,7 +33,11 @@ LEARNING_RATE = 0.0005
 EPSILON_DECAY = 0.000000001
 MIN_EPSILON = 0.1
 
-FRAME_SKIPPING_STEPS = 4
+FRAMES_PER_STEP = 4
+STEPS_PER_ACTION = 4
+
+LIDAR_RAY_COUNT = 360
+LIDAR_MAX_DISTANCE = 400
 
 REWARD_FOR_WINNING = 10
 REWARD_FOR_EXISTING = 0.01

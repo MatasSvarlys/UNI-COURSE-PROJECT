@@ -8,3 +8,4 @@ q_values_log.txt
 **/q-values
 training_loss_analysis.png
 loss_log.txt
+**/logs

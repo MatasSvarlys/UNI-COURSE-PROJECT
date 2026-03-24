@@ -23,18 +23,15 @@ class GameWorld:
         self.playerTwo = Player(self.gameMap.p2StartPos[0], self.gameMap.p2StartPos[1], 1)
         self.players = [self.playerOne, self.playerTwo]
 
-        if not rl_settings.TRAINING_MODE and not settings.HEADLESS_MODE:
+        self.rlPlayers = [i for i, (_, v) in enumerate(rl_settings.RL_CONTROL.items()) if v]
+
+        if not settings.HEADLESS_MODE:
             self.camera = Camera()
             self.baseSurface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), pygame.SRCALPHA)
 
             self.surfaces = []
 
-        # TODO: make this a setting
-        self.collision_cooldown = 100
-        # for seeker collisions
-        self.last_collision_time = self.collision_cooldown
-
-        self.lidar_num_rays = 32
+        self.lidar_num_rays = rl_settings.LIDAR_RAY_COUNT
         self.lidar_ray_angles = [i * 360.0 / self.lidar_num_rays for i in range(self.lidar_num_rays)]
 
         self.previous_positions = {
@@ -78,84 +75,43 @@ class GameWorld:
         self.playerOne.set_position(self.gameMap.p1StartPos[0], self.gameMap.p1StartPos[1])
         self.playerTwo.set_position(self.gameMap.p2StartPos[0], self.gameMap.p2StartPos[1])
 
-    def distance_between_two_rects(self, pos1, pos2):
-        return ((pos1.x - pos2.x) ** 2 + (pos1.y - pos2.y) ** 2) ** 0.5
+    def players_collided(self):
+        for player_index in self.rlPlayers:
+            player = self.players[player_index]
+            if player.isSeeker:
+                player.reward += rl_settings.REWARD_FOR_WINNING
+            else:
+                player.reward -= rl_settings.REWARD_FOR_WINNING
 
-    def is_player_out_of_bounds(self, player):
-        map_width_pixels = map_settings.MAP_WIDTH * map_settings.TILE_SIZE
-        
-        # TODO: make it a setting
-        buffer_zone = map_settings.TILE_SIZE * 1.5
-        
-        return (player.position.x < buffer_zone or 
-                player.position.x > map_width_pixels - buffer_zone)
-    
-    def collided_with_seeker(self, player):
-        if(player.isSeeker):
-            player.reward += rl_settings.REWARD_FOR_WINNING
-        else:
-            player.reward += -rl_settings.REWARD_FOR_WINNING
-
-    def update(self, keys):
-        if states.isTerminated:
-            # print(f"started gameworld termination for episode {states.episodeCount}")
-            self.reset()
-            states.isTerminated = False
-            states.startNewEpisode()
-            
-        
-        self.last_collision_time += 1
-        self.distanceBetween = self.distance_between_two_rects(self.playerOne.position, self.playerTwo.position)
+    def update(self, playerActions):
 
         # Update the players
         for player in self.players:
             player.reward = 0
-            player.update(keys, self.gameMap.get_nearby_collision_rects(player.hitbox))
+            player.update(playerActions[player.player_id], self.gameMap.get_nearby_collision_rects(player.hitbox))
             
-            # calculate their rewards
-            if self.distanceBetween <= 50:
-                player.reward += rl_settings.REWARD_FOR_PROXIMITY
-            
-            if (player.isSeeker):
-                player.reward += -rl_settings.REWARD_FOR_EXISTING
-            else:
-                player.reward += rl_settings.REWARD_FOR_EXISTING
-        
-            if (
-                self.players[0].hitbox.colliderect(self.players[1].hitbox)
-                and (self.players[0].isSeeker or self.players[1].isSeeker)
-                and self.last_collision_time >= self.collision_cooldown
-            ):
+            if (self.players[0].hitbox.colliderect(self.players[1].hitbox) and (self.players[0].isSeeker or self.players[1].isSeeker)):
+                if states.isTerminated == False:
+                    self.players_collided()
                 if settings.DEBUG_MODE:
                     print(f"Seeker collided with Player")
-                
-                # Swap seeker
-                # self.players[0].isSeeker = not self.players[0].isSeeker
-                # self.players[1].isSeeker = not self.players[1].isSeeker
-                
 
-                self.collided_with_seeker(self.players[0])
-                self.collided_with_seeker(self.players[1])
-
-                # Reset cooldown timer
-                self.last_collision_time = 0
                 states.isTerminated = True
             
-            # if player.isSeeker and player.reward > 0:
-            #     print(f"given positive reward: {player.reward}")
-            #     print(f"terminated: {states.isTerminated}")
-            #     print("eof gameworld update")
-        
 
-        if not rl_settings.TRAINING_MODE:
-            if settings.HEADLESS_MODE:
-                return
-            # self.camera.follow_with_offset(self.players[0].hitbox, offset_x=0, offset_y=-settings.WINDOW_HEIGHT // 4)
-            self.camera.follow_between_players(self.playerOne.hitbox, self.playerTwo.hitbox)
-            self.camera.manual_nudge(0, -settings.WINDOW_HEIGHT // 4)
+        if not settings.HEADLESS_MODE:
+            self.camera.manual_nudge(0, 0)
 
         # When map will have more logic, it will be updated here
         # self.map.update()
+
+        for playerID in self.rlPlayers:
+            player = self.players[playerID]
+            # Give a small negative reward for existing to encourage faster wins
+            if player.isSeeker:
+                player.reward += -rl_settings.REWARD_FOR_EXISTING
+            else:
+                player.reward += rl_settings.REWARD_FOR_EXISTING
 
     def reset(self):
         self.load_random_map()
@@ -163,10 +119,9 @@ class GameWorld:
         self.playerOne.isSeeker = True
         self.playerTwo.isSeeker = False
         
-        self.playerOne.reward = 0
-        self.playerTwo.reward = 0
+        # self.playerOne.reward = 0
+        # self.playerTwo.reward = 0
 
-        self.last_collision_time = self.collision_cooldown
         return
     
     def draw_lidar_rays(self, surface, player_position):
@@ -177,19 +132,18 @@ class GameWorld:
             
             if collision_point:
                 # Draw ray up to collision point (red line)
-                pygame.draw.line(surface, (255, 0, 0), player_position, collision_point, 1)
+                pygame.draw.line(surface, (255, 0, 0, 50), player_position, collision_point, 1)
                 # Draw small circle at collision point
-                pygame.draw.circle(surface, (255, 0, 0), (int(collision_point[0]), int(collision_point[1])), 3)
+                pygame.draw.circle(surface, (255, 0, 0), (int(collision_point[0]), int(collision_point[1])), 1)
             else:
                 # Draw full ray if no collision (green line)
                 angle_rad = np.radians(angle)
-                end_x = player_position.x + 1000 * np.cos(angle_rad)
-                end_y = player_position.y + 1000 * np.sin(angle_rad)
+                end_x = player_position.x + rl_settings.LIDAR_MAX_DISTANCE * np.cos(angle_rad)
+                end_y = player_position.y + rl_settings.LIDAR_MAX_DISTANCE * np.sin(angle_rad)
                 pygame.draw.line(surface, (0, 255, 0), player_position, (end_x, end_y), 1)
 
     def draw(self):
-        if rl_settings.TRAINING_MODE:
-            return
+
         # Reset the surfaces
         self.surfaces = []
 
@@ -200,16 +154,18 @@ class GameWorld:
 
         # Draw players
         players_surface = self.baseSurface.copy()
+        lidar_surface = self.baseSurface.copy()
         for player in self.players:
             players_surface = player.draw_to_surface(players_surface)
             # if player.isSeeker:
-            #     self.draw_lidar_rays(players_surface, pygame.math.Vector2(player.position.x + settings.PLAYER_WIDTH/2, player.position.y + settings.PLAYER_HEIGHT/2))
+            self.draw_lidar_rays(lidar_surface, pygame.math.Vector2(player.position.x + settings.PLAYER_WIDTH/2, player.position.y + settings.PLAYER_HEIGHT/2))
         self.surfaces.append(players_surface)
+        self.surfaces.append(lidar_surface)
 
         self.camera.draw_surfaces(self.surfaces)
 
 
-    def cast_lidar_ray(self, start_pos, angle, max_distance=1000):
+    def cast_lidar_ray(self, start_pos, angle, max_distance=rl_settings.LIDAR_MAX_DISTANCE):
         # Convert angle to radians
         angle_rad = np.radians(angle)
         
@@ -315,3 +271,6 @@ class GameWorld:
         reward = player.reward
 
         return (np.array(state, dtype=np.float32), reward)
+    
+    def get_reward(self, id):
+        return self.players[id].reward

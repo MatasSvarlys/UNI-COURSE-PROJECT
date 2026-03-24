@@ -9,7 +9,7 @@ from Objects.ExperienceReplay import ReplayMemory
 class DQNetwork(nn.Module):
     def __init__(self, state_size, action_size):
         super(DQNetwork, self).__init__()
-        self.input_size = state_size * rl_settings.FRAME_SKIPPING_STEPS
+        self.input_size = state_size * rl_settings.STEPS_PER_ACTION
         self.fc1 = nn.Linear(self.input_size, 64)
         self.fc2 = nn.Linear(64, 32)
         self.fc3 = nn.Linear(32, action_size)
@@ -82,12 +82,7 @@ class DQNAgent:
                 f.write(f"{q_values.cpu().numpy()[0]}\n")
             # then pick the highest evaluated one
             action_idx = torch.argmax(q_values, dim=1).item()
-        # print(f"State: {state[1]}")
-        # print(f"Q-values: {q_values.cpu().numpy()[0]}")
 
-        # translate to the action from the action map 
-        action = self.action_map[action_idx]
-        
         # TODO: i should probably make a debug object atp
         if hasattr(self, 'debug_counter'):
             self.debug_counter += 1
@@ -99,7 +94,7 @@ class DQNAgent:
             print(f"Q-values: {q_values.cpu().numpy()[0]}")
             print(f"Selected action: {action} (index: {action_idx})")
         
-        return action
+        return action_idx
     
     # Optimize policy network
     def optimize(self, mini_batch, policy_dqn, target_dqn):
@@ -142,9 +137,6 @@ class DQNAgent:
         
         loss = self.loss_fn(currQ, targetQ)
         
-        # Save loss to file
-        # with open('loss_log.txt', 'a') as f:
-        #     f.write(f"{loss.item()}\n")
 
         # Optimize the model
         self.optimizer.zero_grad()  # Clear gradients

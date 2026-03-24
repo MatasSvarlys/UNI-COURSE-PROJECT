@@ -41,13 +41,13 @@ class Player:
         # self.isSeeker = not self.isSeeker
 
     # Update the player state
-    def update(self, keyInputs, collisionRects, dt=1.0):
+    def update(self, action, collisionRects, dt=1.0):
         
         # Movement vector from last frame
         last_movement = self.movementVector
 
         # Update player velocity from wasd/similar inputs
-        input_vector = self.key_input_to_movement_vector(keyInputs, last_movement)
+        input_vector = self.action_to_movement_vector(action, last_movement)
 
         # Apply gravity
         input_vector.y += settings.PLAYER_GRAVITY * dt
@@ -159,14 +159,14 @@ class Player:
         
         return movementVector
 
-    def key_input_to_movement_vector(self, key_inputs, lastMovement):
+    def action_to_movement_vector(self, action, lastMovement):
         # this is the theoretical movement vector for next frame, it will be processed later
         movementVector = vector(lastMovement.x, lastMovement.y)
 
         # --- x-axis movement ---
 
         # If direction keys are pressed, add acceleration to velocity each frame
-        if key_inputs[self.keymap["MOVE_LEFT"]]:
+        if rl_settings.ACTIONS[action] in ("LEFT", "LEFT_JUMP"):
             if self.prev_direction == "right":
                 # I wonder if this has a name 
                 # If the velocity is lower than the max flip acceleration, flip the velocity normally
@@ -179,7 +179,7 @@ class Player:
             else:
                 movementVector.x -= settings.PLAYER_ACCELERATION
 
-        if key_inputs[self.keymap["MOVE_RIGHT"]]:
+        if rl_settings.ACTIONS[action] in ("RIGHT", "RIGHT_JUMP"):
             if self.prev_direction == "left":
             # If the velocity is higher than the negative max flip acceleration, flip the velocity normally
                 if lastMovement.x > -settings.PLAYER_FLIP_MAX_VELOCITY:
@@ -196,7 +196,7 @@ class Player:
 
         # If jump key is pressed and player is grounded, do the jump. 
         # We apply the base force here
-        if key_inputs[self.keymap["JUMP"]] and self.grounded:
+        if rl_settings.ACTIONS[action] in ("JUMP", "LEFT_JUMP", "RIGHT_JUMP") and self.grounded:
             movementVector.y = -settings.PLAYER_JUMP_FORCE
             self.grounded = False
 

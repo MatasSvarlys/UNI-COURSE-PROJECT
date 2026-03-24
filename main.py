@@ -1,3 +1,4 @@
+import numpy as np
 import pygame
 import sys
 from Objects.GameWorld import GameWorld
@@ -5,7 +6,7 @@ from Objects.AgentController import AgentController
 from Settings import rl_settings
 from Settings import global_settings
 import Objects.States as states
-
+from helper_functions.keyToAction import keys_to_action
 
 # Initialize Pygame
 pygame.init()
@@ -19,20 +20,9 @@ gameWorld = GameWorld()
 
 # Initialize the RL agents
 # TODO: make this automatic based on settings
-AgentController = AgentController(gameWorld.get_state_array_size(), ["player_one"])
-# AgentController = AgentController(gameWorld.get_state_array_size(), [])
-# print(gameWorld.get_state_array_size())
-# N = 1000001
-# states.rewardsPerEpisode["player_one"] = [0] * N
-# states.rewardsPerEpisode["player_two"] = [0] * N
-states.rewardsPerEpisode["player_one"].append(rl_settings.START_REWARD)
-states.rewardsPerEpisode["player_two"].append(rl_settings.START_REWARD)
-
+AgentController = AgentController(gameWorld.get_state_array_size())
 
 while running:
-    if states.endEpisode:
-        # AgentController.post_episode_actions()
-        states.endEpisode = False
     
     states.episodeFrame += 1
     if states.episodeFrame >= 600:
@@ -45,14 +35,7 @@ while running:
     # Event handling
     k = pygame.key.get_pressed()
     
-    # convert from the immutable base key array to a mutable array
-    keys = {}
 
-    # copy the keys from the base keys to the new key array
-    # TODO: resolve the issue that arrow keys don't work, because their key code is not ASCII code 
-    for key_code in range(len(k)):
-        keys[key_code] = k[key_code]
-        
     # Event loop
     for event in pygame.event.get():
         # Turn off logic
@@ -60,39 +43,59 @@ while running:
             running = False
     
     # Quick reset
-    if keys[pygame.K_r] and not states.rKeyPressed:
+    if k[pygame.K_r] and not states.rKeyPressed:
         states.isTerminated = True
         states.rKeyPressed = True
-    elif not keys[pygame.K_r]:
+    elif not k[pygame.K_r]:
         states.rKeyPressed = False
 
 
     statesForAgents = {}
+    playerActions = {}
 
-    if rl_settings.RL_CONTROL["player_one"]:
-        # the 0 here looks awful, probably better to remake it with a string name
-        statesForAgents["player_one"] = gameWorld.get_state_for_player(0) 
-    if rl_settings.RL_CONTROL["player_two"]:
-        # the 1 here looks awful, probably better to remake it with a string name
-        statesForAgents["player_two"] = gameWorld.get_state_for_player(1) 
+    # 1. Get state for each agent
+    for idx, name in enumerate(rl_settings.RL_CONTROL.keys()):
+        if rl_settings.RL_CONTROL[name]:
+            statesForAgents[name] = gameWorld.get_state_for_player(idx) 
     
-    # TODO: only get the agent key here
-    keys = AgentController.step_all_agents(statesForAgents, keys)
+    # 2. Get predicted action 
+    agentActions = AgentController.step_all_agents(statesForAgents)
 
-    # Update everything in the game world
-    gameWorld.update(keys)
+    for idx, name in enumerate(rl_settings.RL_CONTROL.keys()):
+        if rl_settings.RL_CONTROL[name]:
+            playerActions[idx] = agentActions[name]
+        else:
+            playerActions[idx] = keys_to_action(idx, k)
 
-    # TODO: update the agent memory here 
+    # 3. Take the action and calculate reward
+    gameWorld.update(playerActions)
 
-    if not rl_settings.TRAINING_MODE:
-        if global_settings.HEADLESS_MODE:
-            continue
-        # Draw the game world
+
+    # 4. Store the experience
+    for idx, name in enumerate(rl_settings.RL_CONTROL.keys()):
+        if rl_settings.RL_CONTROL[name]:
+            
+            agentReward = gameWorld.get_reward(idx)
+            states.episodeReward[name] += agentReward
+
+            AgentController.frameHistory[name].append(statesForAgents[name][0])
+            # TODO: maybe only do the calculations when needed instead of leaving the check in save_experience
+            if len(AgentController.frameHistory[name]) >= rl_settings.STEPS_PER_ACTION * 2:
+                recent_frames = list(AgentController.frameHistory[name])
+                lastStackedState = np.stack(recent_frames[:rl_settings.STEPS_PER_ACTION])
+                currStackedState = np.stack(recent_frames[rl_settings.STEPS_PER_ACTION:])
+                AgentController.save_experience(name, lastStackedState, playerActions[idx], currStackedState, statesForAgents[name][1], states.isTerminated)
+
+    if states.isTerminated:
+        AgentController.post_episode_actions()
+        gameWorld.reset()
+        states.startNewEpisode()
+
+
+    if not global_settings.HEADLESS_MODE:
         gameWorld.draw()
-        
         clock.tick(60)  # 60 frames per second
-    else:
-        pass
+        
 
 # Clean up
 pygame.quit()
