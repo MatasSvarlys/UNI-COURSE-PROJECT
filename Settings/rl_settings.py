@@ -20,17 +20,17 @@ ACTION_SPACE_SIZE = len(ACTIONS)
 
 MINI_BATCH = 64
 MEMORY_SIZE = 100000
-EXPERIENCE_COLLECTION_EPISODES = 25000
+EXPERIENCE_COLLECTION_EPISODES = 10
 
 # every this amount of actions, optimize the policy network
 NETWORK_LEARN_RATE = 10
 # every this amount of policy network optimizations copy the policy network into the target network
-NETWORK_SYNC_RATE = 1000
+NETWORK_SYNC_RATE = 5
 
 DISCOUNT_GAMA = 0.95
 LEARNING_RATE = 0.0005
 
-EPSILON_DECAY = 0.000000001
+EPSILON_DECAY = 0.00001
 MIN_EPSILON = 0.1
 
 FRAMES_PER_STEP = 4
@@ -46,3 +46,8 @@ PENALTY_FOR_RUNNING_INTO_WALL = 0.0001
 # TODO: make a penalty for not moving for a long period of time
 
 START_REWARD = 0
+
+IMAGE_WIDTH = 84
+IMAGE_HEIGHT = 84
+
+CLASSIC_MODE = True

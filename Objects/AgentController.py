@@ -1,17 +1,16 @@
 from collections import deque
 import logging
-import numpy as np
+from logging.handlers import QueueHandler, QueueListener
 import torch
 from Settings import rl_settings
-from Settings import global_settings
 from Objects.DQNAgent import DQNAgent
 import random
+import queue
 import os
 import Objects.States as states
 
 class AgentController:
-    def __init__(self, stateSize):
-        self.stateSize = stateSize
+    def __init__(self):
 
         self.agentNames = [k for k, v in rl_settings.RL_CONTROL.items() if v]
         self.agents = {}
@@ -19,11 +18,13 @@ class AgentController:
         self.isTraining = rl_settings.TRAINING_MODE
 
         self.frameHistory = {}
+        self.stackedState = {}
+        self.lastStackedState = {}
         self.episodeRewards = {}
         self.lastAction = {}
         
         self.randFrames = random.randrange(1, rl_settings.FRAMES_PER_STEP)
-        self.rlFrames = 0
+        self.episodeStep = 0
 
         self.setup_logging()
         self.setup_agents()
@@ -33,31 +34,36 @@ class AgentController:
     
     def setup_logging(self):
         os.makedirs("logs", exist_ok=True)
-        
+        self.queues = {}
+        self.listeners = [] # Store listeners to stop them later if needed
+
         for agentName in self.agentNames:
+            # 1. Setup the Logger
             logger = logging.getLogger(agentName)
             logger.setLevel(logging.INFO)
-            
-            # make logs not appear in console
             logger.propagate = False 
-            
-            # Create file handler
+
+            # 2. Setup the File Handler (The "Writer")
             log_file = os.path.join("logs", f"{agentName}_log.csv")
             file_handler = logging.FileHandler(log_file, mode='a')
-            
-            # CSV formatting: Time, Episode, Epsilon, Random?, Action, RunningReward
-            formatter = logging.Formatter('%(message)s')
-            file_handler.setFormatter(formatter)
-            
-            if not logger.handlers:
-                logger.addHandler(file_handler)
-                # Write header if file is new
-                if os.stat(log_file).st_size == 0:
-                    logger.info("Episode,Epsilon,IsRandom,Action,RunningReward")
+            file_handler.setFormatter(logging.Formatter('%(message)s'))
+
+            # 3. Setup a Private Queue for this specific agent
+            agent_queue = queue.Queue(1000)
+            self.queues[agentName] = agent_queue
+
+            # 4. Link Logger -> Queue
+            queue_handler = QueueHandler(agent_queue)
+            logger.addHandler(queue_handler)
+
+            # 5. Start a Private Listener for this queue only
+            # This listener only knows about THIS agent's file handler
+            listener = QueueListener(agent_queue, file_handler)
+            listener.start()
+            self.listeners.append(listener)
             
             self.loggers[agentName] = logger
-
-
+            
     def load_agents(self, file_path):
         for agentName in self.agentNames:
             policy_path = os.path.join(file_path, f"{agentName}_policy.pth")
@@ -86,38 +92,41 @@ class AgentController:
 
     def setup_agents(self):
         for agentName in self.agentNames:
-            self.agents[agentName] = DQNAgent(stateSize=self.stateSize, action_size=rl_settings.ACTION_SPACE_SIZE, isTraining=self.isTraining)
-            self.frameHistory[agentName] = deque(maxlen=rl_settings.STEPS_PER_ACTION * 2) # one for current and one for past state blocks
+            self.agents[agentName] = DQNAgent(action_size=rl_settings.ACTION_SPACE_SIZE, isTraining=self.isTraining)
+            self.frameHistory[agentName] = deque(maxlen=rl_settings.STEPS_PER_ACTION)
+            self.stackedState[agentName] = None
+            self.lastStackedState[agentName] = None
             self.episodeRewards[agentName] = {}
             self.lastAction[agentName] = 0
 
     def step_all_agents(self, statesForAgents):
-        self.currEpsilon = states.epsilon
-        states.epsilon = max(states.epsilon - rl_settings.EPSILON_DECAY, rl_settings.MIN_EPSILON)
-        nextActions = {}
+        nextAction = {}
 
-        # if states.isTerminated:
-        #     self.post_episode_actions()
+        # Since this is called every frame, we can save those frames in history here
+        for agentName in self.agentNames:
+            if agentName in statesForAgents:
+                self.frameHistory[agentName].append(statesForAgents[agentName])
 
         # Only act once every n frames with a random offset
         if (states.episodeFrame + self.randFrames) % rl_settings.FRAMES_PER_STEP == 0:
-            self.rlFrames += 1
+            self.episodeStep += 1
             
             for agentName in self.agentNames:
-                nextActions[agentName] = self.step_one_agent(agentName, statesForAgents[agentName])
+                self.stackedState[agentName] = list(self.frameHistory[agentName])
+                nextAction[agentName] = self.step_one_agent(agentName, self.stackedState[agentName])
 
         # All other frames repeat the last action
         else:
             for agentName in self.agentNames:
-                nextActions[agentName] = self.lastAction[agentName]
+                nextAction[agentName] = self.lastAction[agentName]
             
 
         # Every few steps update the models   
-        if rl_settings.TRAINING_MODE and states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES and self.rlFrames % rl_settings.NETWORK_LEARN_RATE == 0:
+        if rl_settings.TRAINING_MODE and states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES and self.episodeStep % rl_settings.NETWORK_LEARN_RATE == 0:
             self.update_models()
 
         
-        return nextActions
+        return nextAction
     
     def update_models(self):
         for agentName in self.agentNames:
@@ -130,63 +139,45 @@ class AgentController:
         
         pass
 
-    def step_one_agent(self, agentName, stateObject):
-
-        # agentState = stateObject[0]
-
-
-        # If it's the first few steps of the episode, take random actions untill the frame history fills up. 
-        if self.rlFrames <= rl_settings.STEPS_PER_ACTION * 2:
-            nextAgentAction = self.pick_random_action()
-            self.lastAction[agentName] = self.agents[agentName].float_to_device(nextAgentAction)
-
-            is_random = True
-            self.log_action(agentName, is_random, nextAgentAction, states.episodeReward[agentName])
-            return nextAgentAction
-
-
-
-        # len(self.frameHistory[agentName]) has to be 2*rl_settings.STEPS_PER_ACTION
-        recent_frames = list(self.frameHistory[agentName])
-
-        # lastStackedState = np.stack(recent_frames[:rl_settings.STEPS_PER_ACTION])
-        currStackedState = np.stack(recent_frames[rl_settings.STEPS_PER_ACTION:])
+    def step_one_agent(self, agentName, stackedState):
 
         # If not training, just get the action and move on
-        is_random = False
+        isRandom = False
         if not rl_settings.TRAINING_MODE:
-            nextAgentAction = self.agents[agentName].step(currStackedState) 
+            nextAgentAction = self.agents[agentName].step(stackedState) 
             self.lastAction[agentName] = nextAgentAction
+            self.log_action(agentName, isRandom, nextAgentAction, states.episodeReward[agentName])
             return nextAgentAction
 
         # If the game was terminated, do nothing
         if states.isTerminated:
             nextAgentAction = 0
             self.lastAction[agentName] = nextAgentAction
+            self.log_action(agentName, isRandom, nextAgentAction, states.episodeReward[agentName])
             return nextAgentAction
             
         # If it's the first few episodes, collect dummy data to lessen the overfitting 
         # to the begginging of learning process
         if states.episodeCount < rl_settings.EXPERIENCE_COLLECTION_EPISODES:
             nextAgentAction = self.pick_random_action()
-            self.lastAction[agentName] = self.agents[agentName].float_to_device(nextAgentAction)
+            self.lastAction[agentName] = nextAgentAction
 
-            is_random = True
-            self.log_action(agentName, is_random, nextAgentAction, states.episodeReward[agentName])
+            isRandom = True
+            self.log_action(agentName, isRandom, nextAgentAction, states.episodeReward[agentName])
             return nextAgentAction
 
         # After that, chose the action in an epsilon greedy fashion
         # TODO: Make the random choice seeded for replication
-        is_random = False
-        if random.random() < self.currEpsilon:
+        isRandom = False
+        if random.random() < states.epsilon:
             nextAgentAction = self.pick_random_action()
-            is_random = True
+            isRandom = True
         else:
-            nextAgentAction = self.agents[agentName].step(currStackedState) 
+            nextAgentAction = self.agents[agentName].step(stackedState) 
 
-        self.log_action(agentName, is_random, nextAgentAction, states.episodeReward[agentName])
+        self.log_action(agentName, isRandom, nextAgentAction, states.episodeReward[agentName])
         
-        self.lastAction[agentName] = self.agents[agentName].float_to_device(nextAgentAction)
+        self.lastAction[agentName] = nextAgentAction
 
         return nextAgentAction
 
@@ -210,8 +201,6 @@ class AgentController:
 
 
     def save_experience(self, agentName, lastState, action, currentState, reward, terminated):
-        if (states.episodeFrame + self.randFrames) % rl_settings.FRAMES_PER_STEP != 0:
-            return
 
         agent = self.agents[agentName]
         
@@ -231,13 +220,13 @@ class AgentController:
     def pick_random_action(self):
         return random.randint(0, len(rl_settings.ACTIONS) - 1)
 
-    def log_action(self, agentName, is_random, action, reward):
+    def log_action(self, agentName, isRandom, action, reward):
         # Format: Episode, Epsilon, IsRandom, Action, RunningReward
-        log_msg = f"episode: {states.episodeCount}, frame: {states.episodeFrame}, epsilon: {states.epsilon:.10f}, random: {is_random}, action: {rl_settings.ACTIONS[action]}, reward: {reward:.2f}"
+        log_msg = f"agent: {agentName}, episode: {states.episodeCount}, frame: {states.episodeFrame}, epsilon: {states.epsilon:.10f}, random: {isRandom}, action: {rl_settings.ACTIONS[action]}, reward: {reward:.2f}"
         self.loggers[agentName].info(log_msg)
 
     def log_episode_end(self, agentName, total_reward):
-        log_msg = f"SUMMARY for ep {states.episodeCount}: total reward = {total_reward:.2f}"
+        log_msg = f"agent: {agentName}, SUMMARY for ep {states.episodeCount}: total reward = {total_reward:.2f}"
         
         # We use a visual separator in the log to make it easy to scan
         self.loggers[agentName].info(log_msg)

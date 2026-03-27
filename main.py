@@ -20,7 +20,7 @@ gameWorld = GameWorld()
 
 # Initialize the RL agents
 # TODO: make this automatic based on settings
-AgentController = AgentController(gameWorld.get_state_array_size())
+AgentController = AgentController()
 
 while running:
     
@@ -49,14 +49,14 @@ while running:
     elif not k[pygame.K_r]:
         states.rKeyPressed = False
 
-
     statesForAgents = {}
     playerActions = {}
 
     # 1. Get state for each agent
     for idx, name in enumerate(rl_settings.RL_CONTROL.keys()):
         if rl_settings.RL_CONTROL[name]:
-            statesForAgents[name] = gameWorld.get_state_for_player(idx) 
+            if rl_settings.CLASSIC_MODE:
+                statesForAgents[name] = gameWorld.get_state_screenshot()
     
     # 2. Get predicted action 
     agentActions = AgentController.step_all_agents(statesForAgents)
@@ -70,27 +70,27 @@ while running:
     # 3. Take the action and calculate reward
     gameWorld.update(playerActions)
 
-
-    # 4. Store the experience
     for idx, name in enumerate(rl_settings.RL_CONTROL.keys()):
         if rl_settings.RL_CONTROL[name]:
-            
             agentReward = gameWorld.get_reward(idx)
             states.episodeReward[name] += agentReward
 
-            AgentController.frameHistory[name].append(statesForAgents[name][0])
-            # TODO: maybe only do the calculations when needed instead of leaving the check in save_experience
-            if len(AgentController.frameHistory[name]) >= rl_settings.STEPS_PER_ACTION * 2:
-                recent_frames = list(AgentController.frameHistory[name])
-                lastStackedState = np.stack(recent_frames[:rl_settings.STEPS_PER_ACTION])
-                currStackedState = np.stack(recent_frames[rl_settings.STEPS_PER_ACTION:])
-                AgentController.save_experience(name, lastStackedState, playerActions[idx], currStackedState, statesForAgents[name][1], states.isTerminated)
+    # 4. Store the experience on the frames where the action was actually taken
+    if (states.episodeFrame + AgentController.randFrames) % rl_settings.FRAMES_PER_STEP == 0:
+        for idx, name in enumerate(rl_settings.RL_CONTROL.keys()):
+            if rl_settings.RL_CONTROL[name]:
+                if AgentController.lastStackedState[name] is not None:
+                    AgentController.save_experience(name, AgentController.lastStackedState[name], AgentController.lastAction[name], AgentController.stackedState[name], gameWorld.get_reward(idx), states.isTerminated)
+                if len(AgentController.frameHistory[name]) == rl_settings.FRAMES_PER_STEP:
+                    AgentController.lastStackedState[name] = AgentController.stackedState[name]
 
     if states.isTerminated:
         AgentController.post_episode_actions()
         gameWorld.reset()
         states.startNewEpisode()
 
+
+    states.epsilon = max(states.epsilon - rl_settings.EPSILON_DECAY, rl_settings.MIN_EPSILON)
 
     if not global_settings.HEADLESS_MODE:
         gameWorld.draw()

@@ -25,9 +25,10 @@ class GameWorld:
 
         self.rlPlayers = [i for i, (_, v) in enumerate(rl_settings.RL_CONTROL.items()) if v]
 
+        self.baseSurface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), pygame.SRCALPHA)
+        
         if not settings.HEADLESS_MODE:
             self.camera = Camera()
-            self.baseSurface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), pygame.SRCALPHA)
 
             self.surfaces = []
 
@@ -90,28 +91,26 @@ class GameWorld:
             player.reward = 0
             player.update(playerActions[player.player_id], self.gameMap.get_nearby_collision_rects(player.hitbox))
             
-            if (self.players[0].hitbox.colliderect(self.players[1].hitbox) and (self.players[0].isSeeker or self.players[1].isSeeker)):
-                if states.isTerminated == False:
-                    self.players_collided()
+        if not states.isTerminated and self.players[0].hitbox.colliderect(self.players[1].hitbox):
+                self.players_collided()
+                states.isTerminated = True
                 if settings.DEBUG_MODE:
                     print(f"Seeker collided with Player")
 
-                states.isTerminated = True
-            
-
+        # Give reward for existing
+        for playerID in self.rlPlayers:
+            player = self.players[playerID]
+            if player.isSeeker:
+                player.reward += -rl_settings.REWARD_FOR_EXISTING
+            else:
+                player.reward += rl_settings.REWARD_FOR_EXISTING
+        
         if not settings.HEADLESS_MODE:
             self.camera.manual_nudge(0, 0)
 
         # When map will have more logic, it will be updated here
         # self.map.update()
 
-        for playerID in self.rlPlayers:
-            player = self.players[playerID]
-            # Give a small negative reward for existing to encourage faster wins
-            if player.isSeeker:
-                player.reward += -rl_settings.REWARD_FOR_EXISTING
-            else:
-                player.reward += rl_settings.REWARD_FOR_EXISTING
 
     def reset(self):
         self.load_random_map()
@@ -119,9 +118,6 @@ class GameWorld:
         self.playerOne.isSeeker = True
         self.playerTwo.isSeeker = False
         
-        # self.playerOne.reward = 0
-        # self.playerTwo.reward = 0
-
         return
     
     def draw_lidar_rays(self, surface, player_position):
@@ -211,66 +207,25 @@ class GameWorld:
         return readings
 
 
+    def get_state_screenshot(self, width=rl_settings.IMAGE_WIDTH, height=rl_settings.IMAGE_HEIGHT):
 
-    def get_state_array_size(self):
-        return len(self.get_state_for_player(self.playerOne.player_id)[0])
+        map_surface = self.baseSurface.copy()
+        map_surface = self.gameMap.draw_to_surface(map_surface)
 
-    def get_state_for_player(self, playerID):
+
+        for player in self.players:
+            player.draw_to_surface(map_surface)
+            
+        scaled_view = pygame.transform.smoothscale(map_surface, (width, height))
         
-        if playerID == self.playerOne.player_id:
-            player = self.playerOne
-            otherPlayer = self.playerTwo
-        else:
-            player = self.playerTwo
-            otherPlayer = self.playerOne
-
-        map_width = map_settings.MAP_WIDTH * map_settings.TILE_SIZE
-        map_height = map_settings.MAP_HEIGHT * map_settings.TILE_SIZE
-        state = []
-
-        # Player own state (6 values)
-        state.extend([
-            player.position.x / map_width,
-            player.position.y / map_height,
-            player.movementVector.x / settings.PLAYER_MAX_SPEED,
-            player.movementVector.y / settings.PLAYER_MAX_FSPEED,
-            float(player.grounded),  
-            float(player.isSeeker)
-        ])
-
-        # Other player relative state (4 values)
+        img_array = pygame.surfarray.array3d(scaled_view)
         
-        # An argument could be made to use direct position instead of relative
-        # dx = otherPlayer.position.x - player.position.x
-        # dy = otherPlayer.position.y - player.position.y
-
-        state.extend([
-            otherPlayer.position.x / map_width,
-            otherPlayer.position.y / map_height,
-            otherPlayer.movementVector.x / settings.PLAYER_MAX_SPEED,
-            otherPlayer.movementVector.y / settings.PLAYER_MAX_FSPEED,
-        ])
-
-        # Since a NN won't accept a rect, use only the corner position
-        # Could be nice to test how it feels using all corners or just the middle position
-        # for rect in self.gameMap.collision_rects:
-        #     state.extend(rect.topleft)
-
-
-        # Instead of using all values, it's possible to use LiDAR (raycasting) to only get 
-        # positions of a few rectangles, or even better, just the distance to the rectangle
+        img_array = img_array.transpose(2, 1, 0)
         
-        # TODO: use the middle of the player instead of the top right
-        lidar_readings = self.get_lidar_readings(pygame.math.Vector2(player.position.x + settings.PLAYER_WIDTH/2, player.position.y + settings.PLAYER_HEIGHT/2))
-        normalized_lidar = [dist / 1000.0 for dist in lidar_readings]  # max_distance=1000
-        # print(f"{lidar_readings}\n")
-
-        state.extend(normalized_lidar)
-
+        # Normalize to [0, 1]
+        normalized_img = img_array.astype(np.float32) / 255.0
         
-        reward = player.reward
+        return normalized_img
 
-        return (np.array(state, dtype=np.float32), reward)
-    
     def get_reward(self, id):
         return self.players[id].reward
