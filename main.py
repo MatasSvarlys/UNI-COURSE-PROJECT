@@ -28,9 +28,9 @@ while running:
     if states.episodeFrame >= 600:
         states.isTerminated = True
     
-    if states.episodeCount >= 100:
-        pygame.quit()
-        sys.exit()
+    # if states.episodeCount >= 100:
+    #     pygame.quit()
+    #     sys.exit()
     
     # Event handling
     k = pygame.key.get_pressed()
@@ -57,6 +57,8 @@ while running:
         if rl_settings.RL_CONTROL[name]:
             if rl_settings.CLASSIC_MODE:
                 statesForAgents[name] = gameWorld.get_state_screenshot()
+            else:
+                statesForAgents[name] = gameWorld.get_player_observation(idx)
     
     # 2. Get predicted action 
     agentActions = AgentController.step_all_agents(statesForAgents)

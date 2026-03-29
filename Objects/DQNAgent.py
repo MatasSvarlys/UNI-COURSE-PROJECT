@@ -87,8 +87,8 @@ class DQNAgent:
             # pass the tensor into the network and get its calculated q values
             q_values = self.policy_network(state_tensor)
             # print(q_values)
-            with open('q_values_log.txt', 'a') as f:
-                f.write(f"{q_values.cpu().numpy()[0]}\n")
+            # with open('q_values_log.txt', 'a') as f:
+            #     f.write(f"{q_values.cpu().numpy()[0]}\n")
             # then pick the highest evaluated one
             action_idx = torch.argmax(q_values, dim=1).item()
 

@@ -1,7 +1,7 @@
 # True for agent control, False for human
 RL_CONTROL = {
     "player_one": True,
-    "player_two": True,
+    "player_two": False,
 }
 
 TRAINING_MODE = True
@@ -19,18 +19,18 @@ ACTIONS = [
 ACTION_SPACE_SIZE = len(ACTIONS)
 
 MINI_BATCH = 64
-MEMORY_SIZE = 100000
-EXPERIENCE_COLLECTION_EPISODES = 10
+MEMORY_SIZE = 5000
+EXPERIENCE_COLLECTION_EPISODES = 1000
 
 # every this amount of actions, optimize the policy network
 NETWORK_LEARN_RATE = 10
 # every this amount of policy network optimizations copy the policy network into the target network
-NETWORK_SYNC_RATE = 5
+NETWORK_SYNC_RATE = 10
 
 DISCOUNT_GAMA = 0.95
 LEARNING_RATE = 0.0005
 
-EPSILON_DECAY = 0.00001
+EPSILON_DECAY = 0.000001
 MIN_EPSILON = 0.1
 
 FRAMES_PER_STEP = 4
@@ -50,4 +50,4 @@ START_REWARD = 0
 IMAGE_WIDTH = 84
 IMAGE_HEIGHT = 84
 
-CLASSIC_MODE = True
+CLASSIC_MODE = False
