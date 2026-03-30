@@ -25,12 +25,12 @@ AgentController = AgentController()
 while running:
     
     states.episodeFrame += 1
-    if states.episodeFrame >= 600:
+    if states.episodeFrame >= 1200:
         states.isTerminated = True
     
-    # if states.episodeCount >= 100:
-    #     pygame.quit()
-    #     sys.exit()
+    if states.episodeCount >= 1000000:
+        pygame.quit()
+        sys.exit()
     
     # Event handling
     k = pygame.key.get_pressed()
