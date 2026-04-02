@@ -204,14 +204,16 @@ class AgentController:
 
         agent = self.agents[agentName]
         
-        action_tensor = agent.float_to_device(action)
-        reward_tensor = agent.float_to_device(reward)
+        # action_tensor = agent.float_to_device(action)
+        # reward_tensor = agent.float_to_device(reward)
         
         experience = (
             lastState, 
-            action_tensor, 
+            # action_tensor, 
+            action,
             currentState, 
-            reward_tensor, 
+            # reward_tensor,
+            reward, 
             terminated
         )
         

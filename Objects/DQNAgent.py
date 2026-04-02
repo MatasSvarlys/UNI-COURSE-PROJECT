@@ -113,13 +113,15 @@ class DQNAgent:
         # States is of shape [mini_batch, frame_skip_steps, actual_size]
         # print(f"optimize: {np.array(states).shape}")
         # States has to be of shape [mini_batch, frame_skip_steps * actual_size]
+
+ 
         states = torch.from_numpy(np.array(states)).float().to(self.device)
         states = states.reshape(states.shape[0], -1, rl_settings.IMAGE_HEIGHT, rl_settings.IMAGE_WIDTH)
         newStates = torch.from_numpy(np.array(newStates)).float().to(self.device)        
         newStates = newStates.reshape(newStates.shape[0], -1, rl_settings.IMAGE_HEIGHT, rl_settings.IMAGE_WIDTH)
 
-        actions = torch.stack(actions)
-        rewards = torch.stack(rewards)
+        actions = torch.stack(self.float_to_device(action) for action in actions)
+        rewards = torch.stack(self.float_to_device(reward) for reward in rewards)
 
         terminations = torch.tensor(terminations).float().to(self.device)
 
