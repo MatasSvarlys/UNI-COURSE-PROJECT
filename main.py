@@ -91,8 +91,8 @@ while running:
         gameWorld.reset()
         states.startNewEpisode()
 
-
-    states.epsilon = max(states.epsilon - rl_settings.EPSILON_DECAY, rl_settings.MIN_EPSILON)
+    if states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES:
+        states.epsilon = max(states.epsilon - rl_settings.EPSILON_DECAY, rl_settings.MIN_EPSILON)
 
     if not global_settings.HEADLESS_MODE:
         gameWorld.draw()
