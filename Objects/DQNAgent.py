@@ -107,37 +107,41 @@ class DQNAgent:
     
     # Optimize policy network
     def optimize(self, mini_batch, policy_dqn, target_dqn):
-
         states, actions, newStates, rewards, terminations = zip(*mini_batch)
 
         # States is of shape [mini_batch, frame_skip_steps, actual_size]
         # print(f"optimize: {np.array(states).shape}")
         # States has to be of shape [mini_batch, frame_skip_steps * actual_size]
 
- 
-        states = torch.from_numpy(np.array(states)).float().to(self.device)
+        # 1. Convert to NumPy array (uint8)
+        states_np = np.array(states)
+        new_states_np = np.array(newStates)
+
+        # 2. Move to Device as uint8
+        states_t = torch.from_numpy(states_np).to(self.device)
+        new_states_t = torch.from_numpy(new_states_np).to(self.device)
+
+        # 3. Cast to float and Normalize on the GPU/Device
+        states = states_t.float() / 255.0
+        newStates = new_states_t.float() / 255.0
+
+        # 4. Reshape
+        # Assumes shape [Batch, Channels, Height, Width], -1 will be (frame_skip_steps * actual_channels)
         states = states.reshape(states.shape[0], -1, rl_settings.IMAGE_HEIGHT, rl_settings.IMAGE_WIDTH)
-        newStates = torch.from_numpy(np.array(newStates)).float().to(self.device)        
         newStates = newStates.reshape(newStates.shape[0], -1, rl_settings.IMAGE_HEIGHT, rl_settings.IMAGE_WIDTH)
+        
+        
+        actions = torch.stack([torch.as_tensor(a, device=self.device) for a in actions]).long()
+        rewards = torch.stack([torch.as_tensor(r, device=self.device) for r in rewards])
+        terminations = torch.tensor(terminations, dtype=torch.float32, device=self.device)
 
-        actions = torch.stack(self.float_to_device(action) for action in actions)
-        rewards = torch.stack(self.float_to_device(reward) for reward in rewards)
-
-        terminations = torch.tensor(terminations).float().to(self.device)
-
+        # --- Double DQN Logic ---
         with torch.no_grad():
-            # TODO: make this a setting
-
-            doubleDQN = True
-
-            if doubleDQN:
-                bestActions = policy_dqn(newStates).argmax(dim=1)
-
-                targetQ = rewards + (1-terminations) * rl_settings.DISCOUNT_GAMA * target_dqn(newStates).gather(dim=1, index=bestActions.unsqueeze(dim=1)).squeeze()
-
+            if rl_settings.USE_DOUBLE_DQN:
+                bestActions = policy_dqn(newStates).argmax(dim=1).unsqueeze(dim=1)
+                targetQ = rewards + (1 - terminations) * rl_settings.DISCOUNT_GAMA * target_dqn(newStates).gather(dim=1, index=bestActions).squeeze()
             else:
-                targetQ = rewards + (1-terminations) * rl_settings.DISCOUNT_GAMA * target_dqn(newStates).max(dim=1)[0]
-
+                targetQ = rewards + (1 - terminations) * rl_settings.DISCOUNT_GAMA * target_dqn(newStates).max(dim=1)[0]
 
         currQ = policy_dqn(states).gather(dim=1, index=actions.unsqueeze(dim=1)).squeeze()
 

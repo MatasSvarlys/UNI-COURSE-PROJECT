@@ -237,10 +237,7 @@ class GameWorld:
         
         img_array = img_array.transpose(2, 1, 0)
         
-        # Normalize to [0, 1]
-        normalized_img = img_array.astype(np.float32) / 255.0
-        
-        return normalized_img
+        return img_array.astype(np.uint8)
 
     def get_reward(self, id):
         return self.players[id].reward
