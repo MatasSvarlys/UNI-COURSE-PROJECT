@@ -1,11 +1,13 @@
 from collections import deque
+from logging.handlers import QueueHandler
+
 import logging
-from logging.handlers import QueueHandler, QueueListener
+from torch import multiprocessing
+from helper_functions.logger import logging_worker, log_action, log_episode_end
 import torch
-from Settings import rl_settings
+from Settings import global_settings, rl_settings
 from Objects.DQNAgent import DQNAgent
 import random
-import queue
 import os
 import Objects.States as states
 
@@ -31,37 +33,32 @@ class AgentController:
 
         if rl_settings.LOAD_MODEL:
             self.load_agents("loads")
-    
+
     def setup_logging(self):
         os.makedirs("logs", exist_ok=True)
-        self.queues = {}
-        self.listeners = [] # Store listeners to stop them later if needed
+        self.log_processes = []
 
         for agentName in self.agentNames:
-            # 1. Setup the Logger
             logger = logging.getLogger(agentName)
             logger.setLevel(logging.INFO)
             logger.propagate = False 
 
-            # 2. Setup the File Handler (The "Writer")
-            log_file = os.path.join("logs", f"{agentName}_log.csv")
-            file_handler = logging.FileHandler(log_file, mode='a')
-            file_handler.setFormatter(logging.Formatter('%(message)s'))
-
-            # 3. Setup a Private Queue for this specific agent
-            agent_queue = queue.Queue(1000)
-            self.queues[agentName] = agent_queue
-
-            # 4. Link Logger -> Queue
+            agent_queue = multiprocessing.Queue(global_settings.LOG_QUEUE_SIZE)
             queue_handler = QueueHandler(agent_queue)
             logger.addHandler(queue_handler)
 
-            # 5. Start a Private Listener for this queue only
-            # This listener only knows about THIS agent's file handler
-            listener = QueueListener(agent_queue, file_handler)
-            listener.start()
-            self.listeners.append(listener)
+            log_file = os.path.join("logs", f"{agentName}_log.csv")
             
+            # target now points to the function imported from LoggerUtils
+            p = multiprocessing.Process(
+                target=logging_worker, 
+                args=(agent_queue, log_file),
+                name=f"Logger-{agentName}",
+                daemon=True
+            )
+            p.start()
+            print(f"DEBUG: Started logging process for {agentName} with PID: {p.pid}")
+            self.log_processes.append(p)
             self.loggers[agentName] = logger
             
     def load_agents(self, file_path):
@@ -146,14 +143,36 @@ class AgentController:
         if not rl_settings.TRAINING_MODE:
             nextAgentAction = self.agents[agentName].step(stackedState) 
             self.lastAction[agentName] = nextAgentAction
-            self.log_action(agentName, isRandom, nextAgentAction, states.episodeReward[agentName])
+            
+            log_action(
+                self.loggers[agentName], 
+                agentName, 
+                states.episodeCount, 
+                states.episodeFrame, 
+                states.epsilon, 
+                isRandom, 
+                rl_settings.ACTIONS[nextAgentAction], 
+                states.episodeReward[agentName]
+            )
+            
             return nextAgentAction
 
         # If the game was terminated, do nothing
         if states.isTerminated:
             nextAgentAction = 0
             self.lastAction[agentName] = nextAgentAction
-            self.log_action(agentName, isRandom, nextAgentAction, states.episodeReward[agentName])
+
+            log_action(
+                self.loggers[agentName], 
+                agentName, 
+                states.episodeCount, 
+                states.episodeFrame, 
+                states.epsilon, 
+                isRandom, 
+                rl_settings.ACTIONS[nextAgentAction], 
+                states.episodeReward[agentName]
+            )
+
             return nextAgentAction
             
         # If it's the first few episodes, collect dummy data to lessen the overfitting 
@@ -163,7 +182,18 @@ class AgentController:
             self.lastAction[agentName] = nextAgentAction
 
             isRandom = True
-            self.log_action(agentName, isRandom, nextAgentAction, states.episodeReward[agentName])
+
+            log_action(
+                self.loggers[agentName], 
+                agentName, 
+                states.episodeCount, 
+                states.episodeFrame, 
+                states.epsilon, 
+                isRandom, 
+                rl_settings.ACTIONS[nextAgentAction], 
+                states.episodeReward[agentName]
+            )
+
             return nextAgentAction
 
         # After that, chose the action in an epsilon greedy fashion
@@ -175,8 +205,17 @@ class AgentController:
         else:
             nextAgentAction = self.agents[agentName].step(stackedState) 
 
-        self.log_action(agentName, isRandom, nextAgentAction, states.episodeReward[agentName])
-        
+        log_action(
+            self.loggers[agentName], 
+            agentName, 
+            states.episodeCount, 
+            states.episodeFrame, 
+            states.epsilon, 
+            isRandom, 
+            rl_settings.ACTIONS[nextAgentAction], 
+            states.episodeReward[agentName]
+        )
+
         self.lastAction[agentName] = nextAgentAction
 
         return nextAgentAction
@@ -188,13 +227,18 @@ class AgentController:
             self.save_agents("saves", states.episodeCount)
 
         for agentName in self.agentNames:
-            self.log_episode_end(agentName, states.episodeReward[agentName])
-            
-            agent = self.agents[agentName]
+            log_episode_end(
+                self.loggers[agentName], 
+                agentName, 
+                states.episodeCount, 
+                states.episodeReward[agentName]
+            )
 
+
+            agent = self.agents[agentName]
             if states.episodeCount % rl_settings.NETWORK_SYNC_RATE == 0 and len(agent.memory) > rl_settings.MINI_BATCH and rl_settings.TRAINING_MODE and states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES: 
-                    self.total_steps = 0    
-                    agent.target_network.load_state_dict(agent.policy_network.state_dict())
+                self.total_steps = 0    
+                agent.target_network.load_state_dict(agent.policy_network.state_dict())
 
 
         self.randFrames = random.randrange(1, rl_settings.FRAMES_PER_STEP)
@@ -221,14 +265,3 @@ class AgentController:
 
     def pick_random_action(self):
         return random.randint(0, len(rl_settings.ACTIONS) - 1)
-
-    def log_action(self, agentName, isRandom, action, reward):
-        # Format: Episode, Epsilon, IsRandom, Action, RunningReward
-        log_msg = f"agent: {agentName}, episode: {states.episodeCount}, frame: {states.episodeFrame}, epsilon: {states.epsilon:.10f}, random: {isRandom}, action: {rl_settings.ACTIONS[action]}, reward: {reward:.2f}"
-        self.loggers[agentName].info(log_msg)
-
-    def log_episode_end(self, agentName, total_reward):
-        log_msg = f"agent: {agentName}, SUMMARY for ep {states.episodeCount}: total reward = {total_reward:.2f}"
-        
-        # We use a visual separator in the log to make it easy to scan
-        self.loggers[agentName].info(log_msg)
