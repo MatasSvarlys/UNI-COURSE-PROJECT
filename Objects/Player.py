@@ -31,7 +31,10 @@ class Player:
 
         self.hitbox = pygame.Rect(self.position.x, self.position.y, settings.PLAYER_WIDTH, settings.PLAYER_HEIGHT)
         
-        self.color = settings.PLAYER_COLOR
+        if player_id == 0:
+            self.color = settings.P1_PLAYER_COLOR
+        else:
+             self.color = settings.P2_PLAYER_COLOR
         
         self.movementVector = vector(0, 0)
         self.grounded = False
@@ -215,9 +218,4 @@ class Player:
         
 
     def draw_to_surface(self, surface): 
-        if self.isSeeker:
-            pygame.draw.rect(surface, (0, 255, 0), self.hitbox)
-        else:
-            pygame.draw.rect(surface, self.color, self.hitbox)
-        
-        return surface
+        pygame.draw.rect(surface, self.color, self.hitbox)

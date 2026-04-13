@@ -57,7 +57,6 @@ class AgentController:
                 daemon=True
             )
             p.start()
-            print(f"DEBUG: Started logging process for {agentName} with PID: {p.pid}")
             self.log_processes.append(p)
             self.loggers[agentName] = logger
             

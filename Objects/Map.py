@@ -28,6 +28,14 @@ class Map:
         self.collision_rects = self.calculate_collision_rects(map_data_raw)
         self.drawRects = self.calculate_draw_rects(map_data_raw)
 
+        self.full_map = pygame.Surface((self.grid_width * map_settings.TILE_SIZE, self.grid_height * map_settings.TILE_SIZE))
+
+        self.drawMap()
+
+    def drawMap(self):
+        for rect, color in self.drawRects:
+            pygame.draw.rect(self.full_map, color, rect)
+
     def getPlayerPosition(self, map_data_raw, playerNumber):
         for y_coord, row in enumerate(map_data_raw):
             for x_coord, tile in enumerate(row):
@@ -111,12 +119,5 @@ class Map:
         
         return nearby_rects
     
-    def draw_to_surface(self, surface):
-        for tile in self.drawRects:
-            pygame.draw.rect(
-                surface, # what surface
-                tile[1], # color
-                tile[0] # rect
-                )
-            
-        return surface
+    def drawMapOntoSurface(self, surface):
+        surface.blit(self.full_map, (0, 0))

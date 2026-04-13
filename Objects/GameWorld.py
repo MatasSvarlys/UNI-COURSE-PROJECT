@@ -26,12 +26,15 @@ class GameWorld:
 
         self.rlPlayers = [i for i, (_, v) in enumerate(rl_settings.RL_CONTROL.items()) if v]
 
+        # Surfaces for drawing
         self.baseSurface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), pygame.SRCALPHA)
+        self.scaled_ai_view = pygame.Surface((rl_settings.IMAGE_WIDTH, rl_settings.IMAGE_HEIGHT))
+        self.players_surface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), pygame.SRCALPHA)
+        self.lidar_surface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), pygame.SRCALPHA)
+        
         
         if not settings.HEADLESS_MODE:
             self.camera = Camera()
-
-            self.surfaces = []
 
         self.lidar_num_rays = rl_settings.LIDAR_RAY_COUNT
         self.lidar_ray_angles = [i * 360.0 / self.lidar_num_rays for i in range(self.lidar_num_rays)]
@@ -153,23 +156,27 @@ class GameWorld:
 
     def draw(self):
 
-        # Reset the surfaces
         self.surfaces = []
 
         # Draw map
-        map_surface = self.baseSurface.copy()
-        map_surface = self.gameMap.draw_to_surface(map_surface)
-        self.surfaces.append(map_surface)
+        self.gameMap.drawMapOntoSurface(self.baseSurface)
+        self.surfaces.append(self.baseSurface)
 
         # Draw players
-        players_surface = self.baseSurface.copy()
-        lidar_surface = self.baseSurface.copy()
+        self.players_surface.fill((0, 0, 0, 0))
         for player in self.players:
-            players_surface = player.draw_to_surface(players_surface)
-            # if player.isSeeker:
-            self.draw_lidar_rays(lidar_surface, pygame.math.Vector2(player.position.x + settings.PLAYER_WIDTH/2, player.position.y + settings.PLAYER_HEIGHT/2))
-        self.surfaces.append(players_surface)
-        self.surfaces.append(lidar_surface)
+            player.draw_to_surface(self.players_surface)
+        self.surfaces.append(self.players_surface)
+        
+        
+        self.lidar_surface.fill((0, 0, 0, 0))
+        for player in self.players:
+            center = pygame.math.Vector2(
+                player.position.x + settings.PLAYER_WIDTH/2, 
+                player.position.y + settings.PLAYER_HEIGHT/2
+            )
+            self.draw_lidar_rays(self.lidar_surface, center)
+        self.surfaces.append(self.lidar_surface)
 
         self.camera.draw_surfaces(self.surfaces)
 
@@ -222,18 +229,16 @@ class GameWorld:
 
     def get_state_screenshot(self, width=rl_settings.IMAGE_WIDTH, height=rl_settings.IMAGE_HEIGHT):
 
-        map_surface = self.baseSurface.copy()
-        map_surface = self.gameMap.draw_to_surface(map_surface)
-
+        self.gameMap.drawMapOntoSurface(self.baseSurface)
 
         for player in self.players:
-            player.draw_to_surface(map_surface)
+            player.draw_to_surface(self.baseSurface)
             
-        scaled_view = pygame.transform.scale(map_surface, (width, height))
+        pygame.transform.scale(self.baseSurface, (width, height), self.scaled_ai_view)        
         
-        img_array = pygame.surfarray.array3d(scaled_view)
+        img_array = pygame.surfarray.array3d(self.scaled_ai_view)
         
-        # Image.fromarray(img_array).save("debug_state.png")
+        # Image.fromarray(img_array.astype(np.uint8)).save("debug_state.png")
         
         img_array = img_array.transpose(2, 1, 0)
         
