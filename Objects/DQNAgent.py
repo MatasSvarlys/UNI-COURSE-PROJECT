@@ -33,10 +33,12 @@ class DQNetwork(nn.Module):
     
 
 class DQNAgent:
-    def __init__(self, action_size, isTraining):
+    def __init__(self, action_size, isTraining, loss_logger):
         self.action_size = action_size
         self.input_channels = 3 * rl_settings.STEPS_PER_ACTION
-
+        self.loss_logger = loss_logger
+        self.loss_accumulator = []
+        
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         # self.device = torch_directml.device(torch_directml.default_device())
         
@@ -127,9 +129,8 @@ class DQNAgent:
 
         # 4. Reshape
         # Assumes shape [Batch, Channels, Height, Width], -1 will be (frame_skip_steps * actual_channels)
-        states = states.reshape(states.shape[0], -1, rl_settings.IMAGE_HEIGHT, rl_settings.IMAGE_WIDTH)
-        newStates = newStates.reshape(newStates.shape[0], -1, rl_settings.IMAGE_HEIGHT, rl_settings.IMAGE_WIDTH)
-        
+        states = states.view(states.size(0), -1, rl_settings.IMAGE_HEIGHT, rl_settings.IMAGE_WIDTH)
+        newStates = newStates.view(newStates.size(0), -1, rl_settings.IMAGE_HEIGHT, rl_settings.IMAGE_WIDTH)
         
         actions = torch.stack([torch.as_tensor(a, device=self.device) for a in actions]).long()
         rewards = torch.stack([torch.as_tensor(r, device=self.device) for r in rewards])
@@ -150,6 +151,11 @@ class DQNAgent:
         
         loss = self.loss_fn(currQ, targetQ)
         
+        self.loss_accumulator.append(loss.item())
+        if len(self.loss_accumulator) >= 10:
+            avg_loss = sum(self.loss_accumulator) / 10
+            self.loss_logger.info(f"{avg_loss}")
+            self.loss_accumulator = []
 
         # Optimize the model
         self.optimizer.zero_grad()  # Clear gradients
@@ -157,7 +163,6 @@ class DQNAgent:
         
         # This has been used in the human-level-control-through-deep-reinforcement-learning paper
         # to make sure the model does not have major leaps in learning
-        for param in policy_dqn.parameters():
-            param.grad.data.clamp_(-1, 1)
+        torch.nn.utils.clip_grad_norm_(policy_dqn.parameters(), max_norm=1.0)
 
         self.optimizer.step()       # Update network parameters

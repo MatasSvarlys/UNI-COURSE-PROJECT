@@ -17,6 +17,7 @@ class AgentController:
         self.agentNames = [k for k, v in rl_settings.RL_CONTROL.items() if v]
         self.agents = {}
         self.loggers = {}
+        self.loss_loggers = {}
         self.isTraining = rl_settings.TRAINING_MODE
 
         self.frameHistory = {}
@@ -47,8 +48,11 @@ class AgentController:
             queue_handler = QueueHandler(agent_queue)
             logger.addHandler(queue_handler)
 
+            loss_logger = logging.getLogger(f"{agentName}.loss")
+            loss_logger.setLevel(logging.INFO)
+
             log_file = os.path.join("logs", f"{agentName}_log.csv")
-            
+
             # target now points to the function imported from LoggerUtils
             p = multiprocessing.Process(
                 target=logging_worker, 
@@ -59,6 +63,8 @@ class AgentController:
             p.start()
             self.log_processes.append(p)
             self.loggers[agentName] = logger
+
+            self.loss_loggers[agentName] = loss_logger
             
     def load_agents(self, file_path):
         for agentName in self.agentNames:
@@ -88,7 +94,7 @@ class AgentController:
 
     def setup_agents(self):
         for agentName in self.agentNames:
-            self.agents[agentName] = DQNAgent(action_size=rl_settings.ACTION_SPACE_SIZE, isTraining=self.isTraining)
+            self.agents[agentName] = DQNAgent(action_size=rl_settings.ACTION_SPACE_SIZE, isTraining=self.isTraining, loss_logger=self.loss_loggers[agentName])
             self.frameHistory[agentName] = deque(maxlen=rl_settings.STEPS_PER_ACTION)
             self.stackedState[agentName] = None
             self.lastStackedState[agentName] = None

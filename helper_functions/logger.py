@@ -4,11 +4,27 @@ from logging.handlers import QueueListener
 import logging
 
 
-def logging_worker(agent_queue, log_file):
-    file_handler = logging.FileHandler(log_file, mode='a')
-    file_handler.setFormatter(logging.Formatter('%(message)s'))
+def logging_worker(agent_queue, action_log_file):
+
+    # Create the rewards/actions filename and the loss filename
+    loss_log_file = action_log_file.replace("_log.csv", "_loss.csv")
+
+    # Handler for Rewards/Actions (checking random actions)
+    # Columns: Episode, Frame, Epsilon, IsRandom, Action, Reward
+    action_handler = logging.FileHandler(action_log_file, mode='a')
     
-    listener = QueueListener(agent_queue, file_handler)
+    # Handler for Loss Values (for graphing)
+    # Columns: Episode, Step, Loss
+    loss_handler = logging.FileHandler(loss_log_file, mode='a')
+
+    def dispatch_record(record):
+        if ".loss" in record.name:
+            loss_handler.handle(record)
+        else:
+            action_handler.handle(record)
+
+    listener = QueueListener(agent_queue)
+    listener.handle = dispatch_record
     listener.start()
     
     try:
