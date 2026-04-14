@@ -5,6 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from Settings import global_settings, rl_settings
 from Objects.ExperienceReplay import ReplayMemory
+from helper_functions.logger import log_q_values
+from Objects import States
 
 class DQNetwork(nn.Module):
     def __init__(self, input_channels, action_size):
@@ -21,7 +23,9 @@ class DQNetwork(nn.Module):
         
     def forward(self, x):
         # x shape: [Batch, Channels, Height, Width]
+        # print("x.mean(): ", x.mean())
         x = F.relu(self.conv1(x))
+        # print("x.std(): ", x.std())
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
         
@@ -33,12 +37,13 @@ class DQNetwork(nn.Module):
     
 
 class DQNAgent:
-    def __init__(self, action_size, isTraining, loss_logger):
+    def __init__(self, action_size, isTraining, loss_logger, q_logger):
         self.action_size = action_size
         self.input_channels = 3 * rl_settings.STEPS_PER_ACTION
         self.loss_logger = loss_logger
+        self.q_logger = q_logger
         self.loss_accumulator = []
-        
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         # self.device = torch_directml.device(torch_directml.default_device())
         
@@ -83,14 +88,14 @@ class DQNAgent:
 
         state_np = np.array(state)
         state_np = state_np.reshape(-1, rl_settings.IMAGE_HEIGHT, rl_settings.IMAGE_WIDTH)
-        state_tensor = torch.from_numpy(state_np).float().unsqueeze(0).to(self.device)
+
+        state_tensor = torch.from_numpy(state_np).float().to(self.device) / 255.0 
+        state_tensor = state_tensor.unsqueeze(0)
         
         with torch.no_grad():
             # pass the tensor into the network and get its calculated q values
             q_values = self.policy_network(state_tensor)
-            # print(q_values)
-            # with open('q_values_log.txt', 'a') as f:
-            #     f.write(f"{q_values.cpu().numpy()[0]}\n")
+            log_q_values(self.q_logger, States.episodeCount, States.episodeFrame, q_values.cpu().numpy()[0])
             # then pick the highest evaluated one
             action_idx = torch.argmax(q_values, dim=1).item()
 
@@ -151,12 +156,8 @@ class DQNAgent:
         
         loss = self.loss_fn(currQ, targetQ)
         
-        self.loss_accumulator.append(loss.item())
-        if len(self.loss_accumulator) >= 10:
-            avg_loss = sum(self.loss_accumulator) / 10
-            self.loss_logger.info(f"{avg_loss}")
-            self.loss_accumulator = []
-
+        self.loss_logger.info(loss.item())
+        
         # Optimize the model
         self.optimizer.zero_grad()  # Clear gradients
         loss.backward()             # Compute gradients

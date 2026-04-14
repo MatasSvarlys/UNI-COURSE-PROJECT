@@ -16,8 +16,11 @@ class AgentController:
 
         self.agentNames = [k for k, v in rl_settings.RL_CONTROL.items() if v]
         self.agents = {}
+        
         self.loggers = {}
         self.loss_loggers = {}
+        self.q_loggers = {}
+
         self.isTraining = rl_settings.TRAINING_MODE
 
         self.frameHistory = {}
@@ -51,6 +54,9 @@ class AgentController:
             loss_logger = logging.getLogger(f"{agentName}.loss")
             loss_logger.setLevel(logging.INFO)
 
+            q_logger = logging.getLogger(f"{agentName}.qval")
+            q_logger.setLevel(logging.INFO)
+
             log_file = os.path.join("logs", f"{agentName}_log.csv")
 
             # target now points to the function imported from LoggerUtils
@@ -65,13 +71,14 @@ class AgentController:
             self.loggers[agentName] = logger
 
             self.loss_loggers[agentName] = loss_logger
-            
+            self.q_loggers[agentName] = q_logger
+
     def load_agents(self, file_path):
         for agentName in self.agentNames:
             policy_path = os.path.join(file_path, f"{agentName}_policy.pth")
             if os.path.exists(policy_path):
                 print(policy_path)
-                self.agents[agentName].policy_network.load_state_dict(torch.load(policy_path))
+                self.agents[agentName].policy_network.load_state_dict(torch.load(policy_path, map_location=torch.device('cpu')))
             else:
                 print("policy network not loaded")
             
@@ -94,7 +101,7 @@ class AgentController:
 
     def setup_agents(self):
         for agentName in self.agentNames:
-            self.agents[agentName] = DQNAgent(action_size=rl_settings.ACTION_SPACE_SIZE, isTraining=self.isTraining, loss_logger=self.loss_loggers[agentName])
+            self.agents[agentName] = DQNAgent(action_size=rl_settings.ACTION_SPACE_SIZE, isTraining=self.isTraining, loss_logger=self.loss_loggers[agentName], q_logger=self.q_loggers[agentName])
             self.frameHistory[agentName] = deque(maxlen=rl_settings.STEPS_PER_ACTION)
             self.stackedState[agentName] = None
             self.lastStackedState[agentName] = None
@@ -106,6 +113,12 @@ class AgentController:
 
         # Since this is called every frame, we can save those frames in history here
         for agentName in self.agentNames:
+            # For the first frame in an episode, fill the history with the same frame to avoid 
+            # leaking from last episode and passing a non-fuull history
+            if states.episodeFrame == 1:
+                for _ in range(rl_settings.STEPS_PER_ACTION - 1):
+                    self.frameHistory[agentName].append(statesForAgents[agentName])
+
             if agentName in statesForAgents:
                 self.frameHistory[agentName].append(statesForAgents[agentName])
 
@@ -146,7 +159,10 @@ class AgentController:
         # If not training, just get the action and move on
         isRandom = False
         if not rl_settings.TRAINING_MODE:
-            nextAgentAction = self.agents[agentName].step(stackedState) 
+            if random.random() < 0.1:
+                nextAgentAction = self.pick_random_action()
+            else:
+                nextAgentAction = self.agents[agentName].step(stackedState) 
             self.lastAction[agentName] = nextAgentAction
             
             log_action(
@@ -224,7 +240,6 @@ class AgentController:
         self.lastAction[agentName] = nextAgentAction
 
         return nextAgentAction
-
 
     def post_episode_actions(self):
         
