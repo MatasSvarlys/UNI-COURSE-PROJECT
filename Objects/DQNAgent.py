@@ -1,3 +1,5 @@
+from PIL import Image
+
 import numpy as np
 import torch
 # import torch_directml
@@ -39,7 +41,7 @@ class DQNetwork(nn.Module):
 class DQNAgent:
     def __init__(self, action_size, isTraining, loss_logger, q_logger):
         self.action_size = action_size
-        self.input_channels = 3 * rl_settings.STEPS_PER_ACTION
+        self.input_channels = rl_settings.STEPS_PER_ACTION
         self.loss_logger = loss_logger
         self.q_logger = q_logger
         self.loss_accumulator = []
@@ -92,6 +94,11 @@ class DQNAgent:
         state_tensor = torch.from_numpy(state_np).float().to(self.device) / 255.0 
         state_tensor = state_tensor.unsqueeze(0)
         
+        # debug_frames = state_np.astype(np.uint8)
+        # side_by_side = np.hstack(debug_frames[:4])
+    
+        # Image.fromarray(side_by_side).save("debug_state.png")
+
         with torch.no_grad():
             # pass the tensor into the network and get its calculated q values
             q_values = self.policy_network(state_tensor)

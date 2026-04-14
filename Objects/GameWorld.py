@@ -231,18 +231,22 @@ class GameWorld:
 
         self.gameMap.drawMapOntoSurface(self.baseSurface)
 
-        for player in self.players:
-            player.draw_to_surface(self.baseSurface)
-            
+        colors = [(255, 255, 255), (0, 0, 0)]
+        for i, player in enumerate(self.players):
+            # Temporarily draw a simple rect or colored sprite
+            pygame.draw.rect(self.baseSurface, colors[i], player.hitbox)
+        
         pygame.transform.scale(self.baseSurface, (width, height), self.scaled_ai_view)        
         
         img_array = pygame.surfarray.array3d(self.scaled_ai_view)
         
+        gray_img = img_array.mean(axis=2)
+        
         # Image.fromarray(img_array.astype(np.uint8)).save("debug_state.png")
         
-        img_array = img_array.transpose(2, 1, 0)
+        gray_img = gray_img.transpose(1, 0)
         
-        return img_array.astype(np.uint8)
+        return gray_img.astype(np.uint8)
 
     def get_reward(self, id):
         return self.players[id].reward
