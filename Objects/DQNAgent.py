@@ -13,7 +13,7 @@ from Objects import States
 class DQNetwork(nn.Module):
     def __init__(self, input_channels, action_size):
         super(DQNetwork, self).__init__()
-        # input_channels will be (3 * STEPS_PER_ACTION)
+        # input_channels will be equal to STEPS_PER_ACTION as the colors are grayscaled
         self.conv1 = nn.Conv2d(input_channels, 32, kernel_size=8, stride=4)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)

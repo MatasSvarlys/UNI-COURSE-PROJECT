@@ -4,8 +4,8 @@ RL_CONTROL = {
     "player_two": False,
 }
 
-TRAINING_MODE = True
-LOAD_MODEL = False
+TRAINING_MODE = False
+LOAD_MODEL = True
 
 ACTIONS = [
     "NOOP",
@@ -50,5 +50,5 @@ START_REWARD = 0
 IMAGE_WIDTH = 84
 IMAGE_HEIGHT = 84
 
-CLASSIC_MODE = False
+CLASSIC_MODE = True
 USE_DOUBLE_DQN = True
