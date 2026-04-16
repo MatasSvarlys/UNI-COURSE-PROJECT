@@ -10,3 +10,5 @@ training_loss_analysis.png
 loss_log.txt
 **/logs
 **/loads
+debug_state.png
+map_debug.png
