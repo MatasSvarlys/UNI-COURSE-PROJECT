@@ -28,7 +28,7 @@ while running:
     if states.episodeFrame >= 1200:
         states.isTerminated = True
     
-    if states.episodeCount >= 1000000:
+    if states.episodeCount >= 50001:
         pygame.quit()
         sys.exit()
     

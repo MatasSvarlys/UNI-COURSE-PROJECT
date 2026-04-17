@@ -148,8 +148,8 @@ class AgentController:
             agent = self.agents[agentName]
             # If enough experience has been collected
             if len(agent.memory) > rl_settings.MINI_BATCH: 
+                # This works the same no matter what experience collection method is
                 mini_batch = agent.memory.sample(rl_settings.MINI_BATCH)
-                # Optimize the policy network
                 agent.optimize(mini_batch, agent.policy_network, agent.target_network)
         
         pass
@@ -280,8 +280,10 @@ class AgentController:
             reward, 
             terminated
         )
-        
-        agent.memory.append(experience)
+        if rl_settings.USE_PRIORITIZED_EXPERIENCE_REPLAY:
+            agent.memory.add(experience)
+        else:
+            agent.memory.append(experience)
 
     def pick_random_action(self):
         return random.randint(0, len(rl_settings.ACTIONS) - 1)

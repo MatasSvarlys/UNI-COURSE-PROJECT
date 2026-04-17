@@ -5,6 +5,7 @@ import torch
 # import torch_directml
 import torch.nn as nn
 import torch.nn.functional as F
+from Objects.PrioritizedExperienceReplay import PrioritizedReplayMemory
 from Settings import global_settings, rl_settings
 from Objects.ExperienceReplay import ReplayMemory
 from helper_functions.logger import log_q_values
@@ -50,7 +51,11 @@ class DQNAgent:
         # self.device = torch_directml.device(torch_directml.default_device())
         
         self.isTraining = isTraining 
-        self.memory = ReplayMemory(rl_settings.MEMORY_SIZE)
+
+        if rl_settings.USE_PRIORITIZED_EXPERIENCE_REPLAY:
+            self.memory = PrioritizedReplayMemory(rl_settings.MEMORY_SIZE)
+        else:
+            self.memory = ReplayMemory(rl_settings.MEMORY_SIZE)
 
         self.prevState = None
         
@@ -121,7 +126,18 @@ class DQNAgent:
     
     # Optimize policy network
     def optimize(self, mini_batch, policy_dqn, target_dqn):
-        states, actions, newStates, rewards, terminations = zip(*mini_batch)
+        
+        if rl_settings.USE_PRIORITIZED_EXPERIENCE_REPLAY:
+            # batch_data contains (samples, indices, is_weights)
+            samples, indices, is_weights = mini_batch
+            is_weights = is_weights.to(self.device)
+        else:
+            # batch_data is just the list of transitions
+            samples = mini_batch
+            indices = None
+            is_weights = torch.ones(len(samples)).to(self.device) # Weight = 1 for standard DQN
+        
+        states, actions, newStates, rewards, terminations = zip(*samples)
 
         # States is of shape [mini_batch, frame_skip_steps, actual_size]
         # print(f"optimize: {np.array(states).shape}")
@@ -158,10 +174,15 @@ class DQNAgent:
 
         currQ = policy_dqn(states).gather(dim=1, index=actions.unsqueeze(dim=1)).squeeze()
 
-        if global_settings.DEBUG_MODE:
-            print(f"Current Q values: {currQ} -> target Q values: {targetQ}")
-        
-        loss = self.loss_fn(currQ, targetQ)
+        td_errors = torch.abs(currQ - targetQ).detach().cpu().numpy()
+
+        if rl_settings.USE_PRIORITIZED_EXPERIENCE_REPLAY and indices is not None:
+            for i in range(len(indices)):
+                self.memory.update(indices[i], td_errors[i])
+
+
+        loss_unweighted = F.mse_loss(currQ, targetQ, reduction='none')
+        loss = (loss_unweighted * is_weights).mean()        
         
         self.loss_logger.info(loss.item())
         
