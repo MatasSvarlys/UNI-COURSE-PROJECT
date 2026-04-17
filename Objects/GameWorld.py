@@ -32,7 +32,8 @@ class GameWorld:
         self.players_surface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), pygame.SRCALPHA)
         self.lidar_surface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), pygame.SRCALPHA)
         
-        
+        self.captureOccured = False
+
         if not settings.HEADLESS_MODE:
             self.camera = Camera()
 
@@ -104,9 +105,8 @@ class GameWorld:
             
         if not states.isTerminated and self.players[0].hitbox.colliderect(self.players[1].hitbox):
                 self.players_collided()
-                states.isTerminated = True
-                if settings.DEBUG_MODE:
-                    print(f"Seeker collided with Player")
+                self.captureOccured = True
+                self.load_random_map()
 
         # Give reward for existing
         for playerID in self.rlPlayers:

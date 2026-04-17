@@ -23,9 +23,14 @@ gameWorld = GameWorld()
 AgentController = AgentController()
 
 while running:
-    
+
+    if gameWorld.captureOccured:
+        states.framesLeft = rl_settings.MAX_FRAMES
+        gameWorld.captureOccured = False
+
+    states.framesLeft -= 1
     states.episodeFrame += 1
-    if states.episodeFrame >= 1200:
+    if states.framesLeft <= 0:
         states.isTerminated = True
     
     if states.episodeCount >= 50001:
@@ -91,8 +96,6 @@ while running:
         gameWorld.reset()
         states.startNewEpisode()
 
-    if states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES:
-        states.epsilon = max(states.epsilon - rl_settings.EPSILON_DECAY, rl_settings.MIN_EPSILON)
 
     if not global_settings.HEADLESS_MODE:
         gameWorld.draw()

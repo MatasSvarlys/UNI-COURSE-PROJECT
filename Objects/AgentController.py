@@ -125,7 +125,10 @@ class AgentController:
         # Only act once every n frames with a random offset
         if (states.episodeFrame + self.randFrames) % rl_settings.FRAMES_PER_STEP == 0:
             self.episodeStep += 1
-            
+
+            if not rl_settings.TRAINING_MODE or states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES:
+                states.epsilon = max(states.epsilon * rl_settings.EPSILON_DECAY, rl_settings.MIN_EPSILON)
+
             for agentName in self.agentNames:
                 self.stackedState[agentName] = list(self.frameHistory[agentName])
                 nextAction[agentName] = self.step_one_agent(agentName, self.stackedState[agentName])
@@ -159,7 +162,7 @@ class AgentController:
         # If not training, just get the action and move on
         isRandom = False
         if not rl_settings.TRAINING_MODE:
-            if random.random() < 0.1:
+            if random.random() < 0.01:
                 nextAgentAction = self.pick_random_action()
             else:
                 nextAgentAction = self.agents[agentName].step(stackedState) 
