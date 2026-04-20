@@ -25,11 +25,11 @@ class AgentController:
 
         self.frameHistory = {}
         self.stackedState = {}
+        self.nStepBuffers = {}
         self.lastStackedState = {}
         self.episodeRewards = {}
         self.lastAction = {}
         
-        self.randFrames = random.randrange(1, rl_settings.FRAMES_PER_STEP)
         self.episodeStep = 0
 
         self.setup_logging()
@@ -103,41 +103,25 @@ class AgentController:
         for agentName in self.agentNames:
             self.agents[agentName] = DQNAgent(action_size=rl_settings.ACTION_SPACE_SIZE, isTraining=self.isTraining, loss_logger=self.loss_loggers[agentName], q_logger=self.q_loggers[agentName])
             self.frameHistory[agentName] = deque(maxlen=rl_settings.STEPS_PER_ACTION)
+            self.nStepBuffers[agentName] = deque(maxlen=rl_settings.N_STEP_LENGTH)
             self.stackedState[agentName] = None
             self.lastStackedState[agentName] = None
             self.episodeRewards[agentName] = {}
             self.lastAction[agentName] = 0
 
-    def step_all_agents(self, statesForAgents):
+    def step_all_agents(self):
         nextAction = {}
+        self.episodeStep += 1
 
-        # Since this is called every frame, we can save those frames in history here
         for agentName in self.agentNames:
-            # For the first frame in an episode, fill the history with the same frame to avoid 
-            # leaking from last episode and passing a non-fuull history
-            if states.episodeFrame == 1:
-                for _ in range(rl_settings.STEPS_PER_ACTION - 1):
-                    self.frameHistory[agentName].append(statesForAgents[agentName])
-
-            if agentName in statesForAgents:
-                self.frameHistory[agentName].append(statesForAgents[agentName])
-
-        # Only act once every n frames with a random offset
-        if (states.episodeFrame + self.randFrames) % rl_settings.FRAMES_PER_STEP == 0:
-            self.episodeStep += 1
-
-            if not rl_settings.TRAINING_MODE or states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES:
-                states.epsilon = max(states.epsilon * rl_settings.EPSILON_DECAY, rl_settings.MIN_EPSILON)
-
-            for agentName in self.agentNames:
-                self.stackedState[agentName] = list(self.frameHistory[agentName])
-                nextAction[agentName] = self.step_one_agent(agentName, self.stackedState[agentName])
-
-        # All other frames repeat the last action
-        else:
-            for agentName in self.agentNames:
-                nextAction[agentName] = self.lastAction[agentName]
+            # get the next action
+            self.stackedState[agentName] = list(self.frameHistory[agentName])
+            nextAction[agentName] = self.step_one_agent(agentName, self.stackedState[agentName])
+        
             
+        # reduce the epsilon if we need to
+        if not rl_settings.TRAINING_MODE or states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES:
+            states.epsilon = max(states.epsilon * rl_settings.EPSILON_DECAY, rl_settings.MIN_EPSILON)
 
         # Every few steps update the models   
         if rl_settings.TRAINING_MODE and states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES and self.episodeStep % rl_settings.NETWORK_LEARN_RATE == 0:
@@ -151,7 +135,7 @@ class AgentController:
             agent = self.agents[agentName]
             # If enough experience has been collected
             if len(agent.memory) > rl_settings.MINI_BATCH: 
-                # This works the same no matter what experience collection method is
+                # This works the same no matter what the experience collection method is
                 mini_batch = agent.memory.sample(rl_settings.MINI_BATCH)
                 agent.optimize(mini_batch, agent.policy_network, agent.target_network)
         
@@ -162,7 +146,8 @@ class AgentController:
         # If not training, just get the action and move on
         isRandom = False
         if not rl_settings.TRAINING_MODE:
-            if random.random() < 0.01:
+            # if the model hasnt fully learned change this to 0.01 to see if it moves at all
+            if random.random() < 1:
                 nextAgentAction = self.pick_random_action()
             else:
                 nextAgentAction = self.agents[agentName].step(stackedState) 
@@ -260,12 +245,7 @@ class AgentController:
 
             agent = self.agents[agentName]
             if states.episodeCount % rl_settings.NETWORK_SYNC_RATE == 0 and len(agent.memory) > rl_settings.MINI_BATCH and rl_settings.TRAINING_MODE and states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES: 
-                self.total_steps = 0    
                 agent.target_network.load_state_dict(agent.policy_network.state_dict())
-
-
-        self.randFrames = random.randrange(1, rl_settings.FRAMES_PER_STEP)
-
 
     def save_experience(self, agentName, lastState, action, currentState, reward, terminated):
 
@@ -287,6 +267,28 @@ class AgentController:
             agent.memory.add(experience)
         else:
             agent.memory.append(experience)
+
+
+    def save_from_nstep(self, name, currentState, terminal):
+        # calculate the total reward
+        nStepReward = 0
+        for i, (_, _, r) in enumerate(self.nStepBuffers[name]):
+            nStepReward += (rl_settings.DISCOUNT_GAMA ** i) * r
+        
+        # start state is the very first state in the buffer
+        startState = self.nStepBuffers[name][0][0]
+        startAction = self.nStepBuffers[name][0][1]
+
+        # save to the real replay memory
+        self.save_experience(name, 
+                             startState, 
+                             startAction, 
+                             currentState, 
+                             nStepReward, 
+                             terminal
+                             )
+        
+
 
     def pick_random_action(self):
         return random.randint(0, len(rl_settings.ACTIONS) - 1)

@@ -26,9 +26,9 @@ class DQNetwork(nn.Module):
         
     def forward(self, x):
         # x shape: [Batch, Channels, Height, Width]
-        # print("x.mean(): ", x.mean())
+        print("x.mean(): ", x.mean())
         x = F.relu(self.conv1(x))
-        # print("x.std(): ", x.std())
+        print("x.std(): ", x.std())
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
         

@@ -103,10 +103,9 @@ class GameWorld:
             player.reward = 0
             player.update(playerActions[player.player_id], self.gameMap.get_nearby_collision_rects(player.hitbox))
             
-        if not states.isTerminated and self.players[0].hitbox.colliderect(self.players[1].hitbox):
+        if self.players[0].hitbox.colliderect(self.players[1].hitbox):
                 self.players_collided()
                 self.captureOccured = True
-                self.load_random_map()
 
         # Give reward for existing
         for playerID in self.rlPlayers:
