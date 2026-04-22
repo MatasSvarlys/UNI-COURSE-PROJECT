@@ -80,7 +80,7 @@ while running:
     for _, agentName in enumerate(rl_settings.RL_CONTROL.keys()):
         if rl_settings.RL_CONTROL[agentName]:
             if len(AgentController.frameHistory[agentName]) == 0:
-                for _ in range(rl_settings.STEPS_PER_ACTION - 1):
+                for _ in range(rl_settings.STEPS_PER_ACTION):
                     AgentController.frameHistory[agentName].append(statesForAgents[agentName])
 
 
@@ -147,6 +147,7 @@ while running:
     if gameWorld.captureOccured:
         gameWorld.reset()
         gameWorld.captureOccured = False
+        states.framesLeft += 50
 
     if states.isTerminated:
         AgentController.post_episode_actions()

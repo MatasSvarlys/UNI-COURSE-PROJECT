@@ -43,9 +43,11 @@ class GameWorld:
 
         # TODO: keep only the memory of players that are being trained
         self.player_memories = [
-            np.full((self.gameMap.grid_height, self.gameMap.grid_width), 127, dtype=np.uint8) 
+            np.full((self.gameMap.grid_height, self.gameMap.grid_width), 128, dtype=np.uint8) 
             for _ in range(len(self.players))
         ]
+        self.scale_x = rl_settings.IMAGE_WIDTH / settings.WINDOW_WIDTH
+        self.scale_y = rl_settings.IMAGE_HEIGHT / settings.WINDOW_HEIGHT
 
         self.previous_positions = {
             self.playerOne.player_id: self.playerOne.position.copy(),
@@ -126,7 +128,7 @@ class GameWorld:
         self.load_random_map()
 
         self.player_memories = [
-            np.full((self.gameMap.grid_height, self.gameMap.grid_width), 127, dtype=np.uint8) 
+            np.full((self.gameMap.grid_height, self.gameMap.grid_width), 128, dtype=np.uint8) 
             for _ in range(len(self.players))
         ]
 
@@ -251,45 +253,42 @@ class GameWorld:
         return self.players[id].reward
     
 
-    def trace_and_update_memory(self, player_idx, start_pos, end_pos, hit_occured):
-        memory = self.player_memories[player_idx]
+    def trace_and_update_memory(self, memory, x0, y0, x1, y1, hit):
         
-        # Convert world coordinates to grid coordinates
-        x0, y0 = self.gameMap.world_to_grid_coordinates(start_pos.x, start_pos.y)
-        x1, y1 = self.gameMap.world_to_grid_coordinates(end_pos.x, end_pos.y)
 
         # Get the distance of game blocks from the player to the collision point 
         dx = abs(x1 - x0)
         dy = abs(y1 - y0)
         x, y = x0, y0
-        
-        # The total steps to reach the end point
-        n = 1 + dx + dy
-        
+
         # Decide on which direction to step to
         x_inc = 1 if x1 > x0 else -1
         y_inc = 1 if y1 > y0 else -1
         
         # Decide the next steps direction
         error = dx - dy
-        dx *= 2
-        dy *= 2
 
-        for _ in range(n):
+        while True:
             # Bounds check
             if 0 <= x < self.gameMap.grid_width and 0 <= y < self.gameMap.grid_height:
                 # If this is the last tile and we actually hit a wall
-                if x == x1 and y == y1 and hit_occured:
-                    memory[y, x] = 0 # Mark as Wall
-                    break 
-                elif memory[y, x] != 0:
-                    # If it wasnt marked as a wall before, mark it as passable
-                    memory[y, x] = 255
+                if x == x1 and y == y1:
+                    if hit:
+                        # Mark as Wall (black-ish)
+                        memory[y, x] = 40
+                        break 
+                    else:
+                        # Mark it as passable (white-ish)
+                        memory[y, x] = 200
+                if memory[y, x] != 40:
+                    memory[y, x] = 200
+            if x == x1 and y == y1: break
             
-            if error > 0:
+            e2 = 2 * error
+            if e2 > -dy:
                 x += x_inc
                 error -= dy
-            else:
+            if e2 < dx:
                 y += y_inc
                 error += dx
 
@@ -300,53 +299,51 @@ class GameWorld:
             self.players[player_idx].position.y + settings.PLAYER_HEIGHT / 2
         )
 
+        memory = self.player_memories[player_idx]
+
         for angle in self.lidar_ray_angles:
-            _, collision_point = self.cast_lidar_ray(p_center, angle)
+            dist, collision_point = self.cast_lidar_ray(p_center, angle)
+            
+            # approximate player postion for lidar tracing
+            x0, y0 = self.gameMap.world_to_grid_coordinates(p_center.x, p_center.y)
             
             if collision_point:
-                # Cast the point to a Vector2 for the tracer
-                end_point = pygame.math.Vector2(collision_point[0], collision_point[1])
-                self.trace_and_update_memory(player_idx, p_center, end_point, True)
+                # Get the collision block coordinates
+                x1, y1 = self.gameMap.world_to_grid_coordinates(collision_point[0], collision_point[1])                
+                hit = True            
             else:
                 # No hit: trace to max distance
                 angle_rad = np.radians(angle)
                 end_x = p_center.x + rl_settings.LIDAR_MAX_DISTANCE * np.cos(angle_rad)
                 end_y = p_center.y + rl_settings.LIDAR_MAX_DISTANCE * np.sin(angle_rad)
-                self.trace_and_update_memory(player_idx, p_center, pygame.math.Vector2(end_x, end_y), False)
+                x1, y1 = self.gameMap.world_to_grid_coordinates(end_x, end_y)
+                hit = False
+            self.trace_and_update_memory(memory, x0, y0, x1, y1, hit)
 
     def get_player_observation(self, player_idx):
         self.update_discovery(player_idx)
-        
         # Get the permanent memory of the map
-        obs = self.player_memories[player_idx].copy()
+        obs_np = self.player_memories[player_idx].transpose(1, 0)        
         
-        # Overlay players: 
-        # We use a unique value so the AI knows "This is a player, not a wall"
+        # Make the observation into an image
+        full_res_surface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), 0, 32)
+        grid_w, grid_h = obs_np.shape
+        temp_grid_surf = pygame.Surface((grid_w, grid_h), 0, 32)
+        rgb_stack = np.repeat(obs_np[:, :, np.newaxis], 3, axis=2)
+        pygame.surfarray.blit_array(temp_grid_surf, rgb_stack)
+        pygame.transform.scale(temp_grid_surf, (settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), full_res_surface)
+
+        # draw the players as white and black 
+        colors = [(255, 255, 255), (0, 0, 0)]
         for i, p in enumerate(self.players):
-            gx, gy = self.gameMap.world_to_grid_coordinates(p.position.x, p.position.y)
-            if 0 <= gx < self.gameMap.grid_width and 0 <= gy < self.gameMap.grid_height:
-                # Value 50 for self, 200 for opponent (high contrast)
-                obs[gy, gx] = 50 if i == player_idx else 200
-                
-        # self.save_memory_as_image(player_idx)
-        # Return normalized (1, H, W) for PyTorch/Tensorflow
-        return obs.astype(np.float32) / 255.0
-    
-    def save_memory_as_image(self, player_idx, filename="map_debug.png"):
-        # 1. Grab the 2D array (H, W)
-        grid = self.player_memories[player_idx]
+            pygame.draw.rect(full_res_surface, colors[i], p.hitbox)
         
-        # 2. (Optional) Let's draw the players on top so we know where they are
-        # We create a copy so we don't permanently draw players into the "memory"
-        visual_grid = grid.copy()
-        
-        for i, p in enumerate(self.players):
-            gx, gy = self.gameMap.world_to_grid_coordinates(p.position.x, p.position.y)
-            if 0 <= gx < self.gameMap.grid_width and 0 <= gy < self.gameMap.grid_height:
-                # Mark self as a different gray/white value to stand out
-                visual_grid[gy, gx] = 50 if i == player_idx else 200
-        
-        # 3. Convert the NumPy array to a PIL Image object and save
-        img = Image.fromarray(visual_grid)
-        img.save(filename)
-        print(f"Saved memory map for player {player_idx} to {filename}")
+        ai_surface = pygame.Surface((rl_settings.IMAGE_WIDTH, rl_settings.IMAGE_HEIGHT), 0, 32)
+        pygame.transform.scale(full_res_surface, (rl_settings.IMAGE_WIDTH, rl_settings.IMAGE_HEIGHT), ai_surface)
+
+        final_array = pygame.surfarray.array3d(ai_surface)
+
+        gray_img = final_array.mean(axis=2).astype(np.uint8)
+        gray_img = gray_img.transpose(1, 0)
+        # Image.fromarray(gray_img.astype(np.uint8)).save("map_debug.png")
+        return gray_img

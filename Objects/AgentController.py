@@ -147,7 +147,7 @@ class AgentController:
         isRandom = False
         if not rl_settings.TRAINING_MODE:
             # if the model hasnt fully learned change this to 0.01 to see if it moves at all
-            if random.random() < 1:
+            if random.random() < 0:
                 nextAgentAction = self.pick_random_action()
             else:
                 nextAgentAction = self.agents[agentName].step(stackedState) 
