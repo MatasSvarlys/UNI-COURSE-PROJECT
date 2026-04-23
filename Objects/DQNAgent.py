@@ -1,3 +1,5 @@
+import math
+
 from PIL import Image
 
 import numpy as np
@@ -11,6 +13,66 @@ from Objects.ExperienceReplay import ReplayMemory
 from helper_functions.logger import log_q_values
 from Objects import States
 
+class NoisyLinear(nn.Module):
+    def __init__(self, in_features, out_features, std_init=0.5):
+        super(NoisyLinear, self).__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        
+        # Initial noise level
+        self.std_init = std_init
+
+        # Learnable parameters (Means and Standard Deviations)
+        # in a standard linear layer its y = weight * x + bias
+        # here both are sampled from a normal distribution defined by these parameters
+        # mu is the mean (the middle) and sigma is the standard deviation (the spread)
+        self.weight_mu = nn.Parameter(torch.empty(out_features, in_features))
+        self.weight_sigma = nn.Parameter(torch.empty(out_features, in_features))
+        self.bias_mu = nn.Parameter(torch.empty(out_features))
+        self.bias_sigma = nn.Parameter(torch.empty(out_features))
+
+        # Random noise buffers (not learnable)
+        self.register_buffer('weight_epsilon', torch.empty(out_features, in_features))
+        self.register_buffer('bias_epsilon', torch.empty(out_features))
+
+        self.reset_parameters()
+        self.reset_noise()
+
+    def reset_parameters(self):
+        # the range is based of the size of the input, so it doesnt scale out of control
+        mu_range = 1 / math.sqrt(self.in_features)
+        # then the weights are initialized randomly in that range 
+        # and the noise is initialized to a small value based on the size of the input
+        # this is necessary to let the model understand which neuron is responsible for what
+        # but keep the sigma (the spread) the same so the noise is consistent
+        self.weight_mu.data.uniform_(-mu_range, mu_range)
+        self.weight_sigma.data.fill_(self.std_init / math.sqrt(self.in_features))
+        self.bias_mu.data.uniform_(-mu_range, mu_range)
+        self.bias_sigma.data.fill_(self.std_init / math.sqrt(self.out_features))
+
+    def _scale_noise(self, size):
+        x = torch.randn(size, device=self.weight_mu.device)
+        # since the noise will be multiplied to create a matrix, we want the sqrt of it
+        # but it can be negative, so we take the sign of it
+        return x.sign().mul_(x.abs().sqrt())
+
+    def reset_noise(self):
+        epsilon_in = self._scale_noise(self.in_features)
+        epsilon_out = self._scale_noise(self.out_features)
+        # here is the matrix from the 2 small vectors of noise
+        self.weight_epsilon.copy_(epsilon_out.ger(epsilon_in))
+        self.bias_epsilon.copy_(epsilon_out)
+
+    def forward(self, x):
+        if rl_settings.TRAINING_MODE:
+            # the linear layer where the weight and bias is sampled from the normal distribution 
+            return F.linear(x, 
+                self.weight_mu + self.weight_sigma * self.weight_epsilon, 
+                self.bias_mu + self.bias_sigma * self.bias_epsilon)
+        else:
+            # the standard linear layer
+            return F.linear(x, self.weight_mu, self.bias_mu)
+
 class DQNetwork(nn.Module):
     def __init__(self, input_channels, action_size):
         super(DQNetwork, self).__init__()
@@ -22,22 +84,30 @@ class DQNetwork(nn.Module):
         # Output from conv layers for 84x84 is 64 * 7 * 7 = 3136
         self.flatten_size = 64 * 7 * 7
 
+        LinearLayer = NoisyLinear if rl_settings.USE_NOISY_NETS else nn.Linear
+
         if rl_settings.USE_DUELING_DQN:
             # Dueling Architecture
             self.value_stream = nn.Sequential(
-                nn.Linear(self.flatten_size, 512),
+                LinearLayer(self.flatten_size, 512),
                 nn.ReLU(),
-                nn.Linear(512, 1)
+                LinearLayer(512, 1)
             )
             self.advantage_stream = nn.Sequential(
-                nn.Linear(self.flatten_size, 512),
+                LinearLayer(self.flatten_size, 512),
                 nn.ReLU(),
-                nn.Linear(512, action_size)
+                LinearLayer(512, action_size)
             )
         else:
             # Classic DQN Architecture
-            self.fc1 = nn.Linear(self.flatten_size, 512)
-            self.fc2 = nn.Linear(512, action_size)
+            self.fc1 = LinearLayer(self.flatten_size, 512)
+            self.fc2 = LinearLayer(512, action_size)
+
+    # goes through all the layers and resets noise for the noisy linear layers
+    def reset_noise(self):
+        for m in self.modules():
+            if isinstance(m, NoisyLinear):
+                m.reset_noise()
 
     def forward(self, x):
         # x shape: [Batch, Channels, Height, Width]
@@ -111,7 +181,7 @@ class DQNAgent:
 
     def step(self, state):
         
-        # state is a np float array that gets turned into a torch acceptable tensor
+        # state is a np uint8 array that gets turned into a torch acceptable tensor
         # the unsqueeze 0 creates a new dimention to represent batch size of 1
         # then it gets put into a device for calculations
         # print(f"step: {state.shape}")
@@ -126,6 +196,9 @@ class DQNAgent:
         # side_by_side = np.hstack(debug_frames[:4])
     
         # Image.fromarray(side_by_side).save("debug_state.png")
+
+        if rl_settings.USE_NOISY_NETS:
+            self.policy_network.reset_noise()
 
         with torch.no_grad():
             # pass the tensor into the network and get its calculated q values
@@ -150,6 +223,10 @@ class DQNAgent:
     # Optimize policy network
     def optimize(self, mini_batch, policy_dqn, target_dqn):
         
+        if rl_settings.USE_NOISY_NETS:
+            policy_dqn.reset_noise()
+            target_dqn.reset_noise()
+
         if rl_settings.USE_PRIORITIZED_EXPERIENCE_REPLAY:
             # batch_data contains (samples, indices, is_weights)
             samples, indices, is_weights = mini_batch

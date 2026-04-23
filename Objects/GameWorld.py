@@ -40,7 +40,7 @@ class GameWorld:
 
         self.lidar_num_rays = rl_settings.LIDAR_RAY_COUNT
         self.lidar_ray_angles = [i * 360.0 / self.lidar_num_rays for i in range(self.lidar_num_rays)]
-
+        self.lidar_map_colors = [100, 200, 150] # wall, floor, unknown
 
         # TODO: keep only the memory of players that are being trained
         self.player_memories = [
@@ -129,7 +129,7 @@ class GameWorld:
         self.load_random_map()
 
         self.player_memories = [
-            np.full((self.gameMap.grid_height, self.gameMap.grid_width), 128, dtype=np.uint8) 
+            np.full((self.gameMap.grid_height, self.gameMap.grid_width), self.lidar_map_colors[2], dtype=np.uint8) 
             for _ in range(len(self.players))
         ]
 
@@ -221,11 +221,11 @@ class GameWorld:
             # mark the memory along the way
             if 0 <= map_x < self.gameMap.grid_width and 0 <= map_y < self.gameMap.grid_height:
                 if self.gameMap.blockGrid[map_y][map_x] == 1:
-                    memory[map_y, map_x] = 40 # Mark wall
+                    memory[map_y, map_x] = self.lidar_map_colors[0] # Mark wall
                     hit_wall = True
                     break
                 else:
-                    memory[map_y, map_x] = 200 # Mark floor
+                    memory[map_y, map_x] = self.lidar_map_colors[1] # Mark floor
             else:
                 break
 
@@ -265,46 +265,6 @@ class GameWorld:
     def get_reward(self, id):
         return self.players[id].reward
     
-
-    def trace_and_update_memory(self, memory, x0, y0, x1, y1, hit):
-        
-
-        # Get the distance of game blocks from the player to the collision point 
-        dx = abs(x1 - x0)
-        dy = abs(y1 - y0)
-        x, y = x0, y0
-
-        # Decide on which direction to step to
-        x_inc = 1 if x1 > x0 else -1
-        y_inc = 1 if y1 > y0 else -1
-        
-        # Decide the next steps direction
-        error = dx - dy
-
-        while True:
-            # Bounds check
-            if 0 <= x < self.gameMap.grid_width and 0 <= y < self.gameMap.grid_height:
-                # If this is the last tile and we actually hit a wall
-                if x == x1 and y == y1:
-                    if hit:
-                        # Mark as Wall (black-ish)
-                        memory[y, x] = 40
-                        break 
-                    else:
-                        # Mark it as passable (white-ish)
-                        memory[y, x] = 200
-                if memory[y, x] != 40:
-                    memory[y, x] = 200
-            if x == x1 and y == y1: break
-            
-            e2 = 2 * error
-            if e2 > -dy:
-                x += x_inc
-                error -= dy
-            if e2 < dx:
-                y += y_inc
-                error += dx
-
     def update_discovery(self, player_idx):
         # Center of player for ray casting
         p_center = pygame.math.Vector2(

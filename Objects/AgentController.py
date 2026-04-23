@@ -120,8 +120,9 @@ class AgentController:
         
             
         # reduce the epsilon if we need to
-        if not rl_settings.TRAINING_MODE or states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES:
-            states.epsilon = max(states.epsilon * rl_settings.EPSILON_DECAY, rl_settings.MIN_EPSILON)
+        if not rl_settings.USE_NOISY_NETS:
+            if not rl_settings.TRAINING_MODE or states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES:
+                states.epsilon = max(states.epsilon * rl_settings.EPSILON_DECAY, rl_settings.MIN_EPSILON)
 
         # Every few steps update the models   
         if rl_settings.TRAINING_MODE and states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES and self.episodeStep % rl_settings.NETWORK_LEARN_RATE == 0:
@@ -142,93 +143,61 @@ class AgentController:
         pass
 
     def step_one_agent(self, agentName, stackedState):
-
-        # If not training, just get the action and move on
         isRandom = False
+
+        # If the game was terminated, do nothing
+        # mostly irrelevant, since the action will be ignored
+        if states.isTerminated:
+            nextAgentAction = 0
+            return self.finalize_action(agentName, 0, isRandom)
+        
+        # If not training, just get the action and move on
         if not rl_settings.TRAINING_MODE:
             # if the model hasnt fully learned change this to 0.01 to see if it moves at all
-            if random.random() < 0:
+            # only relevant if not using noisy nets
+            if random.random() < 0 and not rl_settings.USE_NOISY_NETS:
                 nextAgentAction = self.pick_random_action()
             else:
                 nextAgentAction = self.agents[agentName].step(stackedState) 
-            self.lastAction[agentName] = nextAgentAction
-            
-            log_action(
-                self.loggers[agentName], 
-                agentName, 
-                states.episodeCount, 
-                states.episodeFrame, 
-                states.epsilon, 
-                isRandom, 
-                rl_settings.ACTIONS[nextAgentAction], 
-                states.episodeReward[agentName]
-            )
-            
-            return nextAgentAction
+            return self.finalize_action(agentName, nextAgentAction, isRandom)
 
-        # If the game was terminated, do nothing
-        if states.isTerminated:
-            nextAgentAction = 0
-            self.lastAction[agentName] = nextAgentAction
-
-            log_action(
-                self.loggers[agentName], 
-                agentName, 
-                states.episodeCount, 
-                states.episodeFrame, 
-                states.epsilon, 
-                isRandom, 
-                rl_settings.ACTIONS[nextAgentAction], 
-                states.episodeReward[agentName]
-            )
-
-            return nextAgentAction
-            
         # If it's the first few episodes, collect dummy data to lessen the overfitting 
         # to the begginging of learning process
         if states.episodeCount < rl_settings.EXPERIENCE_COLLECTION_EPISODES:
             nextAgentAction = self.pick_random_action()
-            self.lastAction[agentName] = nextAgentAction
-
             isRandom = True
+            return self.finalize_action(agentName, nextAgentAction, isRandom)
 
-            log_action(
-                self.loggers[agentName], 
-                agentName, 
-                states.episodeCount, 
-                states.episodeFrame, 
-                states.epsilon, 
-                isRandom, 
-                rl_settings.ACTIONS[nextAgentAction], 
-                states.episodeReward[agentName]
-            )
 
-            return nextAgentAction
-
-        # After that, chose the action in an epsilon greedy fashion
+        # After that, chose the action in an epsilon greedy fashion/use noisy nets
         # TODO: Make the random choice seeded for replication
-        isRandom = False
-        if random.random() < states.epsilon:
-            nextAgentAction = self.pick_random_action()
-            isRandom = True
+        if rl_settings.USE_NOISY_NETS:
+            nextAgentAction = self.agents[agentName].step(stackedState)
         else:
-            nextAgentAction = self.agents[agentName].step(stackedState) 
+            if random.random() < states.epsilon:
+                nextAgentAction = self.pick_random_action()
+                isRandom = True
+            else:
+                nextAgentAction = self.agents[agentName].step(stackedState) 
 
+        return self.finalize_action(agentName, nextAgentAction, isRandom)
+
+
+
+    def finalize_action(self, agentName, action, isRandom):
+        self.lastAction[agentName] = action
         log_action(
             self.loggers[agentName], 
             agentName, 
             states.episodeCount, 
             states.episodeFrame, 
-            states.epsilon, 
+            states.epsilon if not rl_settings.USE_NOISY_NETS else 0.0, 
             isRandom, 
-            rl_settings.ACTIONS[nextAgentAction], 
+            rl_settings.ACTIONS[action], 
             states.episodeReward[agentName]
         )
-
-        self.lastAction[agentName] = nextAgentAction
-
-        return nextAgentAction
-
+        return action
+    
     def post_episode_actions(self):
         
         if states.episodeCount % 10000 == 0 and rl_settings.TRAINING_MODE:
