@@ -3,6 +3,7 @@ import random
 from PIL import Image
 import pygame
 import numpy as np
+from sympy import rad
 import Objects.States as states
 from Objects.Camera import Camera
 from Objects.Map import Map
@@ -137,12 +138,11 @@ class GameWorld:
         
         return
     
-    def draw_lidar_rays(self, surface, player_position):
+    def draw_lidar_rays(self, surface, player_position, player_idx):
         
         
         for angle in self.lidar_ray_angles:
-            _, collision_point = self.cast_lidar_ray(player_position, angle)
-            
+            _, collision_point, _ = self.cast_lidar_ray_and_update(player_position, angle, self.player_memories[player_idx], player_idx)
             if collision_point:
                 # Draw ray up to collision point (red line)
                 pygame.draw.line(surface, (255, 0, 0, 50), player_position, collision_point, 1)
@@ -176,57 +176,70 @@ class GameWorld:
                 player.position.x + settings.PLAYER_WIDTH/2, 
                 player.position.y + settings.PLAYER_HEIGHT/2
             )
-            self.draw_lidar_rays(self.lidar_surface, center)
+            self.draw_lidar_rays(self.lidar_surface, center, player.player_id)
         self.surfaces.append(self.lidar_surface)
 
         self.camera.draw_surfaces(self.surfaces)
 
 
-    def cast_lidar_ray(self, start_pos, angle, max_distance=rl_settings.LIDAR_MAX_DISTANCE):
+    def cast_lidar_ray_and_update(self, start_pos, angle, memory, player_idx, max_distance=rl_settings.LIDAR_MAX_DISTANCE):
         # Convert angle to radians
-        angle_rad = np.radians(angle)
+        rad = np.radians(angle)
         
-        # Calculate end point of the ray
-        end_x = start_pos.x + max_distance * np.cos(angle_rad)
-        end_y = start_pos.y + max_distance * np.sin(angle_rad)
+        dir_x = np.cos(rad)
+        dir_y = np.sin(rad)
         
-        # to see the lowest distance, use one of those 12th grade algorithms
-        min_distance = max_distance
-        collision_point = None
+        # Start grid coords
+        map_x = int(start_pos.x / map_settings.TILE_SIZE)
+        map_y = int(start_pos.y / map_settings.TILE_SIZE)
+        
+        delta_dist_x = abs(1 / dir_x) if dir_x != 0 else 1e30
+        delta_dist_y = abs(1 / dir_y) if dir_y != 0 else 1e30
 
-        # TODO: get collisions to the other player too
-        for rect in self.gameMap.collision_rects:
-            if self.line_rect_intersection(start_pos, (end_x, end_y), rect):
-                # Find the exact collision point
-                clipped_line = rect.clipline(start_pos, (end_x, end_y))
-                if clipped_line:
-                    # Get the closest point of intersection
-                    point1, point2 = clipped_line
-                    d1 = start_pos.distance_to(point1)
-                    d2 = start_pos.distance_to(point2)
-                    
-                    if d1 < min_distance:
-                        min_distance = d1
-                        collision_point = point1
-                    if d2 < min_distance:
-                        min_distance = d2
-                        collision_point = point2
+
+        step_x = 1 if dir_x >= 0 else -1
+        side_dist_x = (map_x + 1.0 - start_pos.x / map_settings.TILE_SIZE) * delta_dist_x if dir_x >= 0 else (start_pos.x / map_settings.TILE_SIZE - map_x) * delta_dist_x
         
+        step_y = 1 if dir_y >= 0 else -1
+        side_dist_y = (map_y + 1.0 - start_pos.y / map_settings.TILE_SIZE) * delta_dist_y if dir_y >= 0 else (start_pos.y / map_settings.TILE_SIZE - map_y) * delta_dist_y
+        
+        max_grid_dist = max_distance / map_settings.TILE_SIZE
+        current_grid_dist = 0.0
+        hit_wall = False
+
+        # walk through the grid until we hit a wall or exceed max distance
+        while current_grid_dist < max_grid_dist:
+            if side_dist_x < side_dist_y:
+                current_grid_dist = side_dist_x
+                side_dist_x += delta_dist_x
+                map_x += step_x
+            else:
+                current_grid_dist = side_dist_y
+                side_dist_y += delta_dist_y
+                map_y += step_y
+            
+            # mark the memory along the way
+            if 0 <= map_x < self.gameMap.grid_width and 0 <= map_y < self.gameMap.grid_height:
+                if self.gameMap.blockGrid[map_y][map_x] == 1:
+                    memory[map_y, map_x] = 40 # Mark wall
+                    hit_wall = True
+                    break
+                else:
+                    memory[map_y, map_x] = 200 # Mark floor
+            else:
+                break
+
+        wall_world_dist = min(current_grid_dist, max_grid_dist) * map_settings.TILE_SIZE
+        ray_end_world = (start_pos.x + dir_x * wall_world_dist, 
+                         start_pos.y + dir_y * wall_world_dist)
+        
+        other_player = self.players[1 - player_idx]
+        # clipline is fast enough to run once per ray
+        player_seen = bool(other_player.hitbox.clipline(start_pos, ray_end_world))
+
         # Return both distance and collision point for drawing
-        return min_distance, collision_point
+        return wall_world_dist, ray_end_world, player_seen    
     
-    def line_rect_intersection(self, startPos, endPos, rect):
-        return bool(rect.clipline(startPos, endPos))
-
-    def get_lidar_readings(self, player_position):
-        readings = []
-        
-        for angle in self.lidar_ray_angles:
-            distance, _ = self.cast_lidar_ray(player_position, angle)
-            readings.append(distance)
-        
-        return readings
-
 
     def get_state_screenshot(self, width=rl_settings.IMAGE_WIDTH, height=rl_settings.IMAGE_HEIGHT):
 
@@ -300,31 +313,24 @@ class GameWorld:
         )
 
         memory = self.player_memories[player_idx]
-
+        other_visible = False
+        
         for angle in self.lidar_ray_angles:
-            dist, collision_point = self.cast_lidar_ray(p_center, angle)
-            
-            # approximate player postion for lidar tracing
-            x0, y0 = self.gameMap.world_to_grid_coordinates(p_center.x, p_center.y)
-            
-            if collision_point:
-                # Get the collision block coordinates
-                x1, y1 = self.gameMap.world_to_grid_coordinates(collision_point[0], collision_point[1])                
-                hit = True            
-            else:
-                # No hit: trace to max distance
-                angle_rad = np.radians(angle)
-                end_x = p_center.x + rl_settings.LIDAR_MAX_DISTANCE * np.cos(angle_rad)
-                end_y = p_center.y + rl_settings.LIDAR_MAX_DISTANCE * np.sin(angle_rad)
-                x1, y1 = self.gameMap.world_to_grid_coordinates(end_x, end_y)
-                hit = False
-            self.trace_and_update_memory(memory, x0, y0, x1, y1, hit)
+            # This single call handles the grid marking and player detection
+            _, _, player_seen = self.cast_lidar_ray_and_update(
+                p_center, angle, memory, player_idx
+            )
+            if player_seen:
+                other_visible = True
+        self.players[1 - player_idx].is_visible_to_current = other_visible
 
     def get_player_observation(self, player_idx):
+        # Update the memory
         self.update_discovery(player_idx)
+        
         # Get the permanent memory of the map
         obs_np = self.player_memories[player_idx].transpose(1, 0)        
-        
+
         # Make the observation into an image
         full_res_surface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), 0, 32)
         grid_w, grid_h = obs_np.shape
@@ -336,7 +342,11 @@ class GameWorld:
         # draw the players as white and black 
         colors = [(255, 255, 255), (0, 0, 0)]
         for i, p in enumerate(self.players):
-            pygame.draw.rect(full_res_surface, colors[i], p.hitbox)
+            is_me = (i == player_idx)
+            is_visible = p.is_visible_to_current
+            
+            if is_me or is_visible or rl_settings.TOGGLE_VISIBLE_PLAYERS_IN_OBSERVATION:
+                pygame.draw.rect(full_res_surface, colors[i], p.hitbox)
         
         ai_surface = pygame.Surface((rl_settings.IMAGE_WIDTH, rl_settings.IMAGE_HEIGHT), 0, 32)
         pygame.transform.scale(full_res_surface, (rl_settings.IMAGE_WIDTH, rl_settings.IMAGE_HEIGHT), ai_surface)
@@ -345,5 +355,5 @@ class GameWorld:
 
         gray_img = final_array.mean(axis=2).astype(np.uint8)
         gray_img = gray_img.transpose(1, 0)
-        # Image.fromarray(gray_img.astype(np.uint8)).save("map_debug.png")
+        Image.fromarray(gray_img.astype(np.uint8)).save("map_debug.png")
         return gray_img

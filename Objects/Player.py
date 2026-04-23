@@ -39,7 +39,7 @@ class Player:
         self.movementVector = vector(0, 0)
         self.grounded = False
         self.prev_direction = "right"  # Track the last direction for sprite flipping and turning around while moving
-
+        self.is_visible_to_current = False
 
         # self.isSeeker = not self.isSeeker
 

@@ -19,24 +19,47 @@ class DQNetwork(nn.Module):
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
 
-        # We need to calculate the size of the output from conv layers to feed into FC
-        # For an 84x84 input, the output of these specific convs is 7x7x64
-        self.fc1 = nn.Linear(64 * 7 * 7, 512)
-        self.fc2 = nn.Linear(512, action_size)
-        
+        # Output from conv layers for 84x84 is 64 * 7 * 7 = 3136
+        self.flatten_size = 64 * 7 * 7
+
+        if rl_settings.USE_DUELING_DQN:
+            # Dueling Architecture
+            self.value_stream = nn.Sequential(
+                nn.Linear(self.flatten_size, 512),
+                nn.ReLU(),
+                nn.Linear(512, 1)
+            )
+            self.advantage_stream = nn.Sequential(
+                nn.Linear(self.flatten_size, 512),
+                nn.ReLU(),
+                nn.Linear(512, action_size)
+            )
+        else:
+            # Classic DQN Architecture
+            self.fc1 = nn.Linear(self.flatten_size, 512)
+            self.fc2 = nn.Linear(512, action_size)
+
     def forward(self, x):
         # x shape: [Batch, Channels, Height, Width]
-        print("x.mean(): ", x.mean())
+        # print("x.mean(): ", x.mean())
         x = F.relu(self.conv1(x))
-        print("x.std(): ", x.std())
+        # print("x.std(): ", x.std())
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
         
         # Flatten for the fully connected layer
         x = x.view(x.size(0), -1) 
         
-        x = F.relu(self.fc1(x))
-        return self.fc2(x)
+        if rl_settings.USE_DUELING_DQN:
+            # Combine Value and Advantage
+            value = self.value_stream(x)
+            advantage = self.advantage_stream(x)
+            # Q = V + (A - mean(A))
+            return value + (advantage - advantage.mean(dim=1, keepdim=True))
+        else:
+            # Standard path
+            x = F.relu(self.fc1(x))
+            return self.fc2(x)
     
 
 class DQNAgent:

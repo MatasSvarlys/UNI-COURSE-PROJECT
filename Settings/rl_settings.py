@@ -4,8 +4,8 @@ RL_CONTROL = {
     "player_two": False,
 }
 
-TRAINING_MODE = False
-LOAD_MODEL = True
+TRAINING_MODE = True
+LOAD_MODEL = False
 
 ACTIONS = [
     "NOOP",
@@ -20,7 +20,7 @@ ACTION_SPACE_SIZE = len(ACTIONS)
 
 MINI_BATCH = 128
 MEMORY_SIZE = 200000
-EXPERIENCE_COLLECTION_EPISODES = 500
+EXPERIENCE_COLLECTION_EPISODES = 5
 
 # every this amount of actions, optimize the policy network
 NETWORK_LEARN_RATE = 128
@@ -52,8 +52,14 @@ MAX_FRAMES = 1200
 IMAGE_WIDTH = 84
 IMAGE_HEIGHT = 84
 
+# true - uses map screenshots, false - uses LIDAR observations
 CLASSIC_MODE = False
+# true - other player will always be visible
+# false - direct LOS between players has to be made to appear on the map
+TOGGLE_VISIBLE_PLAYERS_IN_OBSERVATION = False
+
 USE_DOUBLE_DQN = True
+USE_DUELING_DQN = True
 USE_PRIORITIZED_EXPERIENCE_REPLAY = True
 
 N_STEP_LENGTH = 3
