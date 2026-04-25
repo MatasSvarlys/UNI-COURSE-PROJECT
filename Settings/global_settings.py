@@ -41,6 +41,6 @@ DEBUG_MODE = False
 # Gen collision consts
 PRECISION_MULTIPLYER = 2
 
-HEADLESS_MODE = False
+HEADLESS_MODE = True
 
 LOG_QUEUE_SIZE = 10000

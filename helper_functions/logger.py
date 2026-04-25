@@ -11,7 +11,7 @@ def logging_worker(agent_queue, action_log_file):
     # Create the rewards/actions filename and the loss filename
     loss_log_file = action_log_file.replace("_log.csv", "_loss.csv")
     qval_log_file = action_log_file.replace("_log.csv", "_qvals.csv")
-    
+    dist_log_file = action_log_file.replace("_log.csv", "_dist.csv")
     # Columns: Episode, Frame, Epsilon, IsRandom, Action, Reward
     action_handler = logging.FileHandler(action_log_file, mode='a')
     
@@ -20,7 +20,10 @@ def logging_worker(agent_queue, action_log_file):
 
     # Columns: Q-values for each action
     qval_handler = logging.FileHandler(qval_log_file, mode='a')
-    
+
+    # Columns: Distribution for first action (as an example)
+    dist_handler = logging.FileHandler(dist_log_file, mode='a')
+
     loss_buffers = {}
     
     def dispatch_record(record):
@@ -42,6 +45,8 @@ def logging_worker(agent_queue, action_log_file):
             
         elif ".qval" in record.name:
             qval_handler.handle(record)
+        elif ".dist" in record.name:
+            dist_handler.handle(record)
         else:
             action_handler.handle(record)
 
@@ -75,3 +80,9 @@ def log_q_values(logger, episode, frame, q_array):
 
 def format_loss_log(avg_loss):
     return f"{avg_loss:.10f}"
+
+def log_distribution(logger, episode, frame, dist_array):
+    # Just logging the first action's distribution as a sample
+    dist_str = ", ".join([f"{val:.4f}" for val in dist_array[0]]) 
+    log_msg = f"episode: {episode}, frame: {frame}, dist: {dist_str}"
+    logger.info(log_msg)

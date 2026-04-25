@@ -20,6 +20,7 @@ class AgentController:
         self.loggers = {}
         self.loss_loggers = {}
         self.q_loggers = {}
+        self.dist_loggers = {}
 
         self.isTraining = rl_settings.TRAINING_MODE
 
@@ -57,6 +58,9 @@ class AgentController:
             q_logger = logging.getLogger(f"{agentName}.qval")
             q_logger.setLevel(logging.INFO)
 
+            dist_logger = logging.getLogger(f"{agentName}.dist")
+            dist_logger.setLevel(logging.INFO)
+
             log_file = os.path.join("logs", f"{agentName}_log.csv")
 
             # target now points to the function imported from LoggerUtils
@@ -72,6 +76,7 @@ class AgentController:
 
             self.loss_loggers[agentName] = loss_logger
             self.q_loggers[agentName] = q_logger
+            self.dist_loggers[agentName] = dist_logger
 
     def load_agents(self, file_path):
         for agentName in self.agentNames:
@@ -101,7 +106,13 @@ class AgentController:
 
     def setup_agents(self):
         for agentName in self.agentNames:
-            self.agents[agentName] = DQNAgent(action_size=rl_settings.ACTION_SPACE_SIZE, isTraining=self.isTraining, loss_logger=self.loss_loggers[agentName], q_logger=self.q_loggers[agentName])
+            self.agents[agentName] = DQNAgent(
+                action_size=rl_settings.ACTION_SPACE_SIZE, 
+                isTraining=self.isTraining, 
+                loss_logger=self.loss_loggers[agentName], 
+                q_logger=self.q_loggers[agentName], 
+                dist_logger=self.dist_loggers[agentName]
+            )
             self.frameHistory[agentName] = deque(maxlen=rl_settings.STEPS_PER_ACTION)
             self.nStepBuffers[agentName] = deque(maxlen=rl_settings.N_STEP_LENGTH)
             self.stackedState[agentName] = None
