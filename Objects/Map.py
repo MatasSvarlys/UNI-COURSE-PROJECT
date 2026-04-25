@@ -1,3 +1,4 @@
+import numpy as np
 import pygame
 from Settings import map_settings
 from typing import List
@@ -12,13 +13,11 @@ class Map:
         # If a file location is provided, load the map from the file
         if file_location:
             with open(file_location, 'r') as f:
-                for line in f:
-                    row = line.strip().split()
-                    map_data_raw.append([int(tile) for tile in row])
+                map_data_raw = [[int(tile) for tile in line.strip().split()] for line in f]
         
         # TODO: recalculate these in an update funciton if blocks move
         # TODO: use the global var instead of passing map data
-        self.blockGrid = map_data_raw
+        self.blockGrid = np.array(map_data_raw, dtype=np.uint8)        
         self.grid_width = len(map_data_raw[0]) if map_data_raw else 0
         self.grid_height = len(map_data_raw)
 

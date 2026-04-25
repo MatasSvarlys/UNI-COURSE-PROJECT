@@ -33,7 +33,8 @@ class GameWorld:
         self.scaled_ai_view = pygame.Surface((rl_settings.IMAGE_WIDTH, rl_settings.IMAGE_HEIGHT))
         self.players_surface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), pygame.SRCALPHA)
         self.lidar_surface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), pygame.SRCALPHA)
-        
+        self.last_lidar_results = [None] * len(self.players)
+
         self.captureOccured = False
 
         if not settings.HEADLESS_MODE:
@@ -41,6 +42,7 @@ class GameWorld:
 
         self.lidar_num_rays = rl_settings.LIDAR_RAY_COUNT
         self.lidar_ray_angles = [i * 360.0 / self.lidar_num_rays for i in range(self.lidar_num_rays)]
+        self.lidar_ray_angles_rad = np.radians(self.lidar_ray_angles)
         self.lidar_map_colors = [100, 200, 150] # wall, floor, unknown
 
         # TODO: keep only the memory of players that are being trained
@@ -138,24 +140,20 @@ class GameWorld:
         self.playerTwo.isSeeker = False
         
         return
-    
-    def draw_lidar_rays(self, surface, player_position, player_idx):
         
+    def draw_lidar_rays(self, surface, player_idx):
+        result = self.last_lidar_results[player_idx]
+        if result is None:
+            return
         
-        for angle in self.lidar_ray_angles:
-            _, collision_point, _ = self.cast_lidar_ray_and_update(player_position, angle, self.player_memories[player_idx], player_idx)
-            if collision_point:
-                # Draw ray up to collision point (red line)
-                pygame.draw.line(surface, (255, 0, 0, 50), player_position, collision_point, 1)
-                # Draw small circle at collision point
-                pygame.draw.circle(surface, (255, 0, 0), (int(collision_point[0]), int(collision_point[1])), 1)
+        for i in range(self.lidar_num_rays):
+            end = (result['end_x'][i], result['end_y'][i])
+            if result['hit_wall'][i]:
+                pygame.draw.line(surface, (255, 0, 0, 50), result['start'], end, 1)
+                pygame.draw.circle(surface, (255, 0, 0), (int(end[0]), int(end[1])), 1)
             else:
-                # Draw full ray if no collision (green line)
-                angle_rad = np.radians(angle)
-                end_x = player_position.x + rl_settings.LIDAR_MAX_DISTANCE * np.cos(angle_rad)
-                end_y = player_position.y + rl_settings.LIDAR_MAX_DISTANCE * np.sin(angle_rad)
-                pygame.draw.line(surface, (0, 255, 0), player_position, (end_x, end_y), 1)
-
+                pygame.draw.line(surface, (0, 255, 0), result['start'], end, 1)
+    
     def draw(self):
 
         self.surfaces = []
@@ -170,77 +168,109 @@ class GameWorld:
             player.draw_to_surface(self.players_surface)
         self.surfaces.append(self.players_surface)
         
-        
+
         self.lidar_surface.fill((0, 0, 0, 0))
-        for player in self.players:
-            center = pygame.math.Vector2(
-                player.position.x + settings.PLAYER_WIDTH/2, 
-                player.position.y + settings.PLAYER_HEIGHT/2
-            )
-            self.draw_lidar_rays(self.lidar_surface, center, player.player_id)
+        for i, player in enumerate(self.players):
+            if i not in self.rlPlayers:
+                self.update_discovery(i)
+            self.draw_lidar_rays(self.lidar_surface, i)
         self.surfaces.append(self.lidar_surface)
 
         self.camera.draw_surfaces(self.surfaces)
 
 
-    def cast_lidar_ray_and_update(self, start_pos, angle, memory, player_idx, max_distance=rl_settings.LIDAR_MAX_DISTANCE):
-        # Convert angle to radians
-        rad = np.radians(angle)
+    def cast_lidar_ray_and_update(self, start_pos, memory, other_player):
+        N = self.lidar_num_rays
+        angles_rad = self.lidar_ray_angles_rad
         
-        dir_x = np.cos(rad)
-        dir_y = np.sin(rad)
+        dir_x = np.cos(angles_rad)
+        dir_y = np.sin(angles_rad)
         
-        # Start grid coords
-        map_x = int(start_pos.x / map_settings.TILE_SIZE)
-        map_y = int(start_pos.y / map_settings.TILE_SIZE)
+        # Starting grid cell
+        start_gx = start_pos.x / map_settings.TILE_SIZE
+        start_gy = start_pos.y / map_settings.TILE_SIZE
+        map_x = np.floor(start_gx).astype(np.int32)
+        map_y = np.floor(start_gy).astype(np.int32)
         
-        delta_dist_x = abs(1 / dir_x) if dir_x != 0 else 1e30
-        delta_dist_y = abs(1 / dir_y) if dir_y != 0 else 1e30
+        with np.errstate(divide='ignore'):
+            delta_x = np.where(dir_x != 0, np.abs(1.0 / dir_x), 1e30)
+            delta_y = np.where(dir_y != 0, np.abs(1.0 / dir_y), 1e30)
+        
+        step_x = np.sign(dir_x).astype(np.int32)
+        step_y = np.sign(dir_y).astype(np.int32)
+        
+        side_x = np.where(dir_x >= 0,
+                        (map_x + 1.0 - start_gx) * delta_x,
+                        (start_gx - map_x) * delta_x)
+        side_y = np.where(dir_y >= 0,
+                        (map_y + 1.0 - start_gy) * delta_y,
+                        (start_gy - map_y) * delta_y)
+        
+        max_grid_dist = rl_settings.LIDAR_MAX_DISTANCE / map_settings.TILE_SIZE
+        # Mark rays that are still active
+        active = np.ones(N, dtype=bool)
+        dist = np.zeros(N, dtype=np.float32)
+        hit_wall = np.zeros(N, dtype=bool)
+        player_seen = False
+        
+        block_grid = self.gameMap.blockGrid  # local ref, faster lookup
+        grid_h = self.gameMap.grid_height
+        grid_w = self.gameMap.grid_width
+        
+        while np.any(active):
+            # Step in X or Y depending on which side is closer
+            step_in_x = active & (side_x < side_y)
+            step_in_y = active & ~step_in_x
 
+            # Advance X rays
+            if np.any(step_in_x):
+                dist  = np.where(step_in_x, side_x, dist)
+                map_x = np.where(step_in_x, map_x + step_x, map_x)
+                side_x = np.where(step_in_x, side_x + delta_x, side_x)
 
-        step_x = 1 if dir_x >= 0 else -1
-        side_dist_x = (map_x + 1.0 - start_pos.x / map_settings.TILE_SIZE) * delta_dist_x if dir_x >= 0 else (start_pos.x / map_settings.TILE_SIZE - map_x) * delta_dist_x
-        
-        step_y = 1 if dir_y >= 0 else -1
-        side_dist_y = (map_y + 1.0 - start_pos.y / map_settings.TILE_SIZE) * delta_dist_y if dir_y >= 0 else (start_pos.y / map_settings.TILE_SIZE - map_y) * delta_dist_y
-        
-        max_grid_dist = max_distance / map_settings.TILE_SIZE
-        current_grid_dist = 0.0
-        hit_wall = False
+            # Advance Y rays
+            if np.any(step_in_y):
+                dist = np.where(step_in_y, side_y, dist)
+                map_y = np.where(step_in_y, map_y + step_y, map_y)
+                side_y = np.where(step_in_y, side_y + delta_y, side_y)
 
-        # walk through the grid until we hit a wall or exceed max distance
-        while current_grid_dist < max_grid_dist:
-            if side_dist_x < side_dist_y:
-                current_grid_dist = side_dist_x
-                side_dist_x += delta_dist_x
-                map_x += step_x
-            else:
-                current_grid_dist = side_dist_y
-                side_dist_y += delta_dist_y
-                map_y += step_y
+            # Deactivate rays that are out of bounds or have exceeded the maximum distance
+            in_bounds = (map_x >= 0) & (map_x < grid_w) & (map_y >= 0) & (map_y < grid_h)
+            exceeded = dist > max_grid_dist
             
-            # mark the memory along the way
-            if 0 <= map_x < self.gameMap.grid_width and 0 <= map_y < self.gameMap.grid_height:
-                if self.gameMap.blockGrid[map_y][map_x] == 1:
-                    memory[map_y, map_x] = self.lidar_map_colors[0] # Mark wall
-                    hit_wall = True
-                    break
-                else:
-                    memory[map_y, map_x] = self.lidar_map_colors[1] # Mark floor
-            else:
-                break
-
-        wall_world_dist = min(current_grid_dist, max_grid_dist) * map_settings.TILE_SIZE
-        ray_end_world = (start_pos.x + dir_x * wall_world_dist, 
-                         start_pos.y + dir_y * wall_world_dist)
+            # Hit wall check (only in-bounds, active rays)
+            check = active & in_bounds & ~exceeded
+            if np.any(check):
+                cx = map_x[check]
+                cy = map_y[check]
+                is_wall = self.gameMap.blockGrid[cy, cx] == 1                
+                # Write floor tiles
+                floor_mask = check.copy()
+                floor_mask[check] = ~is_wall
+                if np.any(floor_mask):
+                    fx, fy = map_x[floor_mask], map_y[floor_mask]
+                    memory[fy, fx] = self.lidar_map_colors[1]
+                
+                # Write wall tiles + stop those rays
+                wall_indices = np.where(check)[0][is_wall]
+                if len(wall_indices):
+                    memory[map_y[wall_indices], map_x[wall_indices]] = self.lidar_map_colors[0]
+                    active[wall_indices] = False
+                    hit_wall[wall_indices] = True
+            # Deactivate out-of-bounds / exceeded rays
+            active &= in_bounds & ~exceeded
         
-        other_player = self.players[1 - player_idx]
-        # clipline is fast enough to run once per ray
-        player_seen = bool(other_player.hitbox.clipline(start_pos, ray_end_world))
 
-        # Return both distance and collision point for drawing
-        return wall_world_dist, ray_end_world, player_seen    
-    
+        # Player visibility — one rect check per ray endpoint
+        wall_dist = np.minimum(dist, max_grid_dist) * map_settings.TILE_SIZE
+        end_x = start_pos.x + dir_x * wall_dist
+        end_y = start_pos.y + dir_y * wall_dist
+        for ex, ey in zip(end_x, end_y):
+            if other_player.hitbox.clipline(start_pos, (ex, ey)):
+                player_seen = True
+                break
+        
+        return player_seen, wall_dist, end_x, end_y, hit_wall    
 
     def get_state_screenshot(self, width=rl_settings.IMAGE_WIDTH, height=rl_settings.IMAGE_HEIGHT):
 
@@ -267,23 +297,24 @@ class GameWorld:
         return self.players[id].reward
     
     def update_discovery(self, player_idx):
-        # Center of player for ray casting
         p_center = pygame.math.Vector2(
             self.players[player_idx].position.x + settings.PLAYER_WIDTH / 2,
             self.players[player_idx].position.y + settings.PLAYER_HEIGHT / 2
         )
-
         memory = self.player_memories[player_idx]
-        other_visible = False
+        other_player = self.players[1 - player_idx]
         
-        for angle in self.lidar_ray_angles:
-            # This single call handles the grid marking and player detection
-            _, _, player_seen = self.cast_lidar_ray_and_update(
-                p_center, angle, memory, player_idx
-            )
-            if player_seen:
-                other_visible = True
-        self.players[1 - player_idx].is_visible_to_current = other_visible
+        other_visible, wall_dist, end_x, end_y, hit_wall = self.cast_lidar_ray_and_update(
+            p_center, memory, other_player
+        )
+        self.last_lidar_results[player_idx] = {
+            'start': p_center,
+            'end_x': end_x,
+            'end_y': end_y,
+            'hit_wall': hit_wall,
+            'dist': wall_dist
+        }
+        other_player.is_visible_to_current = other_visible
 
     def get_player_observation(self, player_idx):
         # Update the memory
@@ -309,5 +340,5 @@ class GameWorld:
                 ix2, iy2 = int(round(x2)), int(round(y2))
                 obs_np[max(0, iy1):min(84, iy2), max(0, ix1):min(84, ix2)] = colors[i]
         
-        # Image.fromarray(obs_np.astype(np.uint8)).save("map_debug.png")
+        Image.fromarray(obs_np.astype(np.uint8)).save("map_debug.png")
         return obs_np
