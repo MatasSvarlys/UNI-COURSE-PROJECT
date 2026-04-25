@@ -192,10 +192,10 @@ class DQNAgent:
         state_tensor = torch.from_numpy(state_np).float().to(self.device) / 255.0 
         state_tensor = state_tensor.unsqueeze(0)
         
-        # debug_frames = state_np.astype(np.uint8)
-        # side_by_side = np.hstack(debug_frames[:4])
+        debug_frames = state_np.astype(np.uint8)
+        side_by_side = np.hstack(debug_frames[:4])
     
-        # Image.fromarray(side_by_side).save("debug_state.png")
+        Image.fromarray(side_by_side).save("debug_state.png")
 
         if rl_settings.USE_NOISY_NETS:
             self.policy_network.reset_noise()

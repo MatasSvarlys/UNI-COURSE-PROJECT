@@ -1,5 +1,6 @@
 import os
 import random
+import cv2
 from PIL import Image
 import pygame
 import numpy as np
@@ -288,32 +289,25 @@ class GameWorld:
         # Update the memory
         self.update_discovery(player_idx)
         
-        # Get the permanent memory of the map
-        obs_np = self.player_memories[player_idx].transpose(1, 0)        
-
-        # Make the observation into an image
-        full_res_surface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), 0, 32)
-        grid_w, grid_h = obs_np.shape
-        temp_grid_surf = pygame.Surface((grid_w, grid_h), 0, 32)
-        rgb_stack = np.repeat(obs_np[:, :, np.newaxis], 3, axis=2)
-        pygame.surfarray.blit_array(temp_grid_surf, rgb_stack)
-        pygame.transform.scale(temp_grid_surf, (settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), full_res_surface)
-
+        obs_np = cv2.resize(self.player_memories[player_idx], 
+                        (rl_settings.IMAGE_WIDTH, rl_settings.IMAGE_HEIGHT), 
+                        interpolation=cv2.INTER_NEAREST)
+        
         # draw the players as white and black 
-        colors = [(255, 255, 255), (0, 0, 0)]
+        colors = [255, 0]
         for i, p in enumerate(self.players):
             is_me = (i == player_idx)
             is_visible = p.is_visible_to_current
             
             if is_me or is_visible or rl_settings.TOGGLE_VISIBLE_PLAYERS_IN_OBSERVATION:
-                pygame.draw.rect(full_res_surface, colors[i], p.hitbox)
+                x1 = int(p.hitbox.x * self.scale_x)
+                y1 = int(p.hitbox.y * self.scale_y)
+                x2 = int((p.hitbox.x + p.hitbox.width) * self.scale_x)
+                y2 = int((p.hitbox.y + p.hitbox.height) * self.scale_y)
+                # Clamp to image bounds
+                ix1, iy1 = int(round(x1)), int(round(y1))
+                ix2, iy2 = int(round(x2)), int(round(y2))
+                obs_np[max(0, iy1):min(84, iy2), max(0, ix1):min(84, ix2)] = colors[i]
         
-        ai_surface = pygame.Surface((rl_settings.IMAGE_WIDTH, rl_settings.IMAGE_HEIGHT), 0, 32)
-        pygame.transform.scale(full_res_surface, (rl_settings.IMAGE_WIDTH, rl_settings.IMAGE_HEIGHT), ai_surface)
-
-        final_array = pygame.surfarray.array3d(ai_surface)
-
-        gray_img = final_array.mean(axis=2).astype(np.uint8)
-        gray_img = gray_img.transpose(1, 0)
-        Image.fromarray(gray_img.astype(np.uint8)).save("map_debug.png")
-        return gray_img
+        # Image.fromarray(obs_np.astype(np.uint8)).save("map_debug.png")
+        return obs_np
