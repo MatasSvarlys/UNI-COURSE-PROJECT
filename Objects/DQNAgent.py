@@ -162,6 +162,8 @@ class DQNAgent:
         self.dist_logger = dist_logger
         self.loss_accumulator = []
 
+        self.stepCounter = 0
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         # self.device = torch_directml.device(torch_directml.default_device())
         
@@ -210,6 +212,7 @@ class DQNAgent:
         return probs 
 
     def step(self, state):
+        self.stepCounter += 1
         
         # state is a np uint8 array that gets turned into a torch acceptable tensor
         # the unsqueeze 0 creates a new dimention to represent batch size of 1
@@ -234,17 +237,21 @@ class DQNAgent:
             # pass the tensor into the network and get its calculated q values
             out = self.policy_network(state_tensor)
             q_values = self.get_q_values(out)
-            q_vals_np = q_values.cpu().numpy()[0]
-            if not rl_settings.USE_DISTRIBUTIONAL_DQN:
-                log_q_values(self.q_logger, 
-                             States.episodeCount, 
-                             States.episodeFrame, 
-                             q_vals_np)
-            else:
-                log_distribution(self.dist_logger, 
+            if self.stepCounter % rl_settings.LOG_INTERVAL == 0:
+                q_vals_np = q_values.cpu().numpy()[0]
+                
+                if not rl_settings.USE_DISTRIBUTIONAL_DQN:
+                    log_q_values(self.q_logger, 
                                  States.episodeCount, 
                                  States.episodeFrame, 
-                                 out.cpu().numpy()[0])
+                                 q_vals_np)
+                else:
+                    # Distributions are huge (51 atoms * actions). 
+                    # This is very heavy to log every frame.
+                    log_distribution(self.dist_logger, 
+                                     States.episodeCount, 
+                                     States.episodeFrame, 
+                                     out.cpu().numpy()[0])
             # then pick the highest evaluated one
             action_idx = torch.argmax(q_values, dim=1).item()
 

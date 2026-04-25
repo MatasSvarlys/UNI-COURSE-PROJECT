@@ -7,6 +7,9 @@ RL_CONTROL = {
 TRAINING_MODE = True
 LOAD_MODEL = False
 
+# How many steps for a log to be pushed. Only affects qvals and distributions logging
+LOG_INTERVAL = 100
+
 ACTIONS = [
     "NOOP",
     "LEFT",
@@ -20,7 +23,7 @@ ACTION_SPACE_SIZE = len(ACTIONS)
 
 MINI_BATCH = 128
 MEMORY_SIZE = 200000
-EXPERIENCE_COLLECTION_EPISODES = 500
+EXPERIENCE_COLLECTION_EPISODES = 5
 
 # every this amount of actions, optimize the policy network
 NETWORK_LEARN_RATE = 128
