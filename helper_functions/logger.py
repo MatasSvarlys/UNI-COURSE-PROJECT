@@ -83,6 +83,6 @@ def format_loss_log(avg_loss):
 
 def log_distribution(logger, episode, frame, dist_array):
     # Just logging the first action's distribution as a sample
-    dist_str = ", ".join([f"{val:.4f}" for val in dist_array[0]]) 
+    dist_str = ", ".join([f"{val:.4f}" for val in dist_array[5]]) 
     log_msg = f"episode: {episode}, frame: {frame}, dist: {dist_str}"
     logger.info(log_msg)

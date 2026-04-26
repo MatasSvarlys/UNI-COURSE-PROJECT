@@ -21,9 +21,11 @@ ACTIONS = [
 
 ACTION_SPACE_SIZE = len(ACTIONS)
 
+# dependant on the gpu, but dont set it more than 256, since it can overlearn the non-catch memories
 MINI_BATCH = 128
+# Highly dependent on your ram, but at least 100k is recommended
 MEMORY_SIZE = 200000
-EXPERIENCE_COLLECTION_EPISODES = 5
+EXPERIENCE_COLLECTION_EPISODES = 500
 
 # every this amount of actions, optimize the policy network
 NETWORK_LEARN_RATE = 128
@@ -42,8 +44,8 @@ STEPS_PER_ACTION = 4
 LIDAR_RAY_COUNT = 16
 LIDAR_MAX_DISTANCE = 400
 
-REWARD_FOR_WINNING = 10
-REWARD_FOR_EXISTING = 0.001
+REWARD_FOR_WINNING = 1
+REWARD_FOR_EXISTING = 0.0001
 REWARD_FOR_PROXIMITY = 0
 PENALTY_FOR_RUNNING_INTO_WALL = 0.0001
 # TODO: make a penalty for not moving for a long period of time
@@ -68,7 +70,7 @@ USE_PRIORITIZED_EXPERIENCE_REPLAY = True
 
 USE_DISTRIBUTIONAL_DQN = True
 NUM_ATOMS = 51
-VMAX = 100
-VMIN = -10
+VMAX = 2
+VMIN = -2
 
 N_STEP_LENGTH = 3
