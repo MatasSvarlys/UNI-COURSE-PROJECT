@@ -4,8 +4,8 @@ RL_CONTROL = {
     "player_two": False,
 }
 
-TRAINING_MODE = True
-LOAD_MODEL = False
+TRAINING_MODE = False
+LOAD_MODEL = True
 
 # How many steps for a log to be pushed. Only affects qvals and distributions logging
 LOG_INTERVAL = 100
@@ -25,7 +25,9 @@ ACTION_SPACE_SIZE = len(ACTIONS)
 MINI_BATCH = 128
 # Highly dependent on your ram, but at least 100k is recommended
 MEMORY_SIZE = 200000
+
 EXPERIENCE_COLLECTION_EPISODES = 500
+MAX_EPISODES = 50001
 
 # every this amount of actions, optimize the policy network
 NETWORK_LEARN_RATE = 128

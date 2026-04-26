@@ -3,10 +3,7 @@ from logging.handlers import QueueListener
 
 import logging
 
-from numpy import record
-
-
-def logging_worker(agent_queue, action_log_file):
+def logging_worker(agent_queue, action_log_file, stop_event):
 
     # Create the rewards/actions filename and the loss filename
     loss_log_file = action_log_file.replace("_log.csv", "_loss.csv")
@@ -55,7 +52,7 @@ def logging_worker(agent_queue, action_log_file):
     listener.start()
     
     try:
-        while True:
+        while not stop_event.is_set():
             time.sleep(1) 
     except KeyboardInterrupt:
         pass

@@ -89,10 +89,12 @@ class GameWorld:
         self.current_map_file = random.choice(self.map_files)
         # Get preloaded map instead of creating new one
         self.gameMap = self.map_cache[self.current_map_file]
+
+        p1_res, p2_res = self.gameMap.get_random_spawns()
         
         # Reset player positions based on new map
-        self.playerOne.set_position(self.gameMap.p1StartPos[0], self.gameMap.p1StartPos[1])
-        self.playerTwo.set_position(self.gameMap.p2StartPos[0], self.gameMap.p2StartPos[1])
+        self.playerOne.set_position(p1_res[0], p1_res[1])
+        self.playerTwo.set_position(p2_res[0], p2_res[1])
 
     def players_collided(self):
         for player_index in self.rlPlayers:

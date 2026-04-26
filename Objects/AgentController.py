@@ -21,6 +21,8 @@ class AgentController:
         self.loss_loggers = {}
         self.q_loggers = {}
         self.dist_loggers = {}
+        self.log_queues = {}
+        self.log_stop_events = {}
 
         self.isTraining = rl_settings.TRAINING_MODE
 
@@ -51,6 +53,7 @@ class AgentController:
             agent_queue = multiprocessing.Queue(global_settings.LOG_QUEUE_SIZE)
             queue_handler = QueueHandler(agent_queue)
             logger.addHandler(queue_handler)
+            self.log_queues[agentName] = agent_queue
 
             loss_logger = logging.getLogger(f"{agentName}.loss")
             loss_logger.setLevel(logging.INFO)
@@ -62,11 +65,13 @@ class AgentController:
             dist_logger.setLevel(logging.INFO)
 
             log_file = os.path.join("logs", f"{agentName}_log.csv")
+            stop_event = multiprocessing.Event()
+            self.log_stop_events[agentName] = stop_event
 
             # target now points to the function imported from LoggerUtils
             p = multiprocessing.Process(
                 target=logging_worker, 
-                args=(agent_queue, log_file),
+                args=(agent_queue, log_file, stop_event),
                 name=f"Logger-{agentName}",
                 daemon=True
             )
@@ -77,6 +82,20 @@ class AgentController:
             self.loss_loggers[agentName] = loss_logger
             self.q_loggers[agentName] = q_logger
             self.dist_loggers[agentName] = dist_logger
+
+    def shutdown_logging(self, timeout=3):
+        for _, stop_event in self.log_stop_events.items():
+            stop_event.set()
+
+        for process in self.log_processes:
+            process.join(timeout=timeout)
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=1)
+
+        for _, queue in self.log_queues.items():
+            queue.close()
+            queue.join_thread()
 
     def load_agents(self, file_path):
         for agentName in self.agentNames:

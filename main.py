@@ -3,6 +3,7 @@ import random
 import numpy as np
 import pygame
 import sys
+import time
 from Objects.GameWorld import GameWorld
 from Objects.AgentController import AgentController
 from Settings import rl_settings
@@ -39,6 +40,7 @@ for idx, name in enumerate(rl_settings.RL_CONTROL.keys()):
 # random offset so the model doesnt always see the same frame
 randFrames = random.randrange(1, rl_settings.FRAMES_PER_STEP)
 
+start_training_time = time.time()
 
 while running:
 
@@ -51,9 +53,9 @@ while running:
     if states.framesLeft <= 0:
         states.isTerminated = True
     
-    if states.episodeCount >= 50001:
-        pygame.quit()
-        sys.exit()
+    if states.episodeCount >= rl_settings.MAX_EPISODES:
+        AgentController.shutdown_logging()
+        running = False
     
     # Event handling
     k = pygame.key.get_pressed()
@@ -160,6 +162,21 @@ while running:
         gameWorld.draw()
         clock.tick(60)  # 60 frames per second
         
+
+
+end_training_time = time.time()
+total_seconds = int(end_training_time - start_training_time)
+
+# Format the time
+hours, remainder = divmod(total_seconds, 3600)
+minutes, seconds = divmod(remainder, 60)
+time_str = f"{hours:02}:{minutes:02}:{seconds:02}"
+
+print(f"\n" + "="*30)
+print(f"TRAINING COMPLETE")
+print(f"Total Episodes: {states.episodeCount}")
+print(f"Total Time: {time_str}")
+print("="*30)
 
 # Clean up
 pygame.quit()
