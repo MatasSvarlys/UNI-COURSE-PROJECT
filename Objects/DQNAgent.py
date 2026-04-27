@@ -240,8 +240,9 @@ class DQNAgent:
             out = self.policy_network(state_tensor)
             q_values = self.get_q_values(out)
             # then pick the highest evaluated one
-            action_idx = torch.argmax(q_values, dim=1).item()
-
+            q_values_cpu = q_values.cpu()
+            action_idx = int(q_values_cpu.argmax(dim=1).numpy()[0])
+            
         if self.stepCounter % rl_settings.LOG_INTERVAL == 0:
             q_vals_np = q_values.cpu().numpy()[0]
             

@@ -25,6 +25,7 @@ class Map:
 
         self.collision_rects = self.calculate_collision_rects(map_data_raw)
         self.drawRects = self.calculate_draw_rects(map_data_raw)
+        self.precompute_nearby_cache() 
 
         self.spawn_tiles = []
         for y, row in enumerate(map_data_raw):
@@ -121,35 +122,30 @@ class Map:
         grid_y = int(world_y // map_settings.TILE_SIZE)
         return grid_x, grid_y
     
-    def get_nearby_collision_rects(self, rect, search_radius=2):
-        nearby_rects = []
-        
-        # Get aprox grid position of the player
-        player_grid_x, player_grid_y = self.world_to_grid_coordinates(rect.centerx, rect.centery)
-        
-        # Search surrounding grid cells
-        for dy in range(-search_radius, search_radius + 1):
-            for dx in range(-search_radius, search_radius + 1):
-                grid_x = player_grid_x + dx
-                grid_y = player_grid_y + dy
-                
-                # Check if grid coordinates are valid
-                if (0 <= grid_x < self.grid_width and 
-                    0 <= grid_y < self.grid_height):
-                    
-                    tile = self.blockGrid[grid_y][grid_x]
-                    
-                    # Check if this tile is solid and should have a collision rect
-                    if (tile in map_settings.TILE_TYPE_MAP and 
-                        map_settings.TILE_TYPE_MAP[tile]["solid"]):
-                        
-                        # Calculate the world position
-                        world_x = grid_x * map_settings.TILE_SIZE
-                        world_y = grid_y * map_settings.TILE_SIZE
-                        rect = pygame.Rect(world_x, world_y, map_settings.TILE_SIZE, map_settings.TILE_SIZE)
-                        nearby_rects.append(rect)
-        
-        return nearby_rects
+
+    def precompute_nearby_cache(self, search_radius=2):
+        # For each grid cell, precompute the list of nearby collision rects
+        self._nearby_cache = {}
+        for grid_y in range(self.grid_height):
+            for grid_x in range(self.grid_width):
+                nearby = []
+                for dy in range(-search_radius, search_radius + 1):
+                    for dx in range(-search_radius, search_radius + 1):
+                        nx, ny = grid_x + dx, grid_y + dy
+                        if (0 <= nx < self.grid_width and 0 <= ny < self.grid_height):
+                            tile = self.blockGrid[ny, nx]
+                            if (tile in map_settings.TILE_TYPE_MAP and
+                                    map_settings.TILE_TYPE_MAP[tile]["solid"]):
+                                world_x = nx * map_settings.TILE_SIZE
+                                world_y = ny * map_settings.TILE_SIZE
+                                nearby.append(pygame.Rect(world_x, world_y, map_settings.TILE_SIZE, map_settings.TILE_SIZE))
+                self._nearby_cache[(grid_x, grid_y)] = nearby
+
+    def get_nearby_collision_rects(self, rect):
+        grid_x, grid_y = self.world_to_grid_coordinates(rect.centerx, rect.centery)
+        grid_x = max(0, min(grid_x, self.grid_width - 1))
+        grid_y = max(0, min(grid_y, self.grid_height - 1))
+        return self._nearby_cache[(grid_x, grid_y)]
     
     def drawMapOntoSurface(self, surface):
         surface.blit(self.full_map, (0, 0))
