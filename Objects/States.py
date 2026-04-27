@@ -4,7 +4,7 @@ episodeFrame = 0
 
 isTerminated = False
 episodeCount = 0
-epsilon = 1
+epsilon = {agentName: 1 for agentName in rl_settings.RL_CONTROL if rl_settings.RL_CONTROL[agentName]}
 episodeReward = {agentName: rl_settings.START_REWARD for agentName in rl_settings.RL_CONTROL if rl_settings.RL_CONTROL[agentName]}
 framesLeft = rl_settings.MAX_FRAMES
 

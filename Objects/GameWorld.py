@@ -200,7 +200,8 @@ class GameWorld:
         end_x_arr = np.empty(N, dtype=np.float64)
         end_y_arr = np.empty(N, dtype=np.float64)
         hit_wall = np.zeros(N, dtype=bool)
-        player_seen = False
+        # If this is toggled to true, we dont need to do the extra clipline check
+        player_seen = rl_settings.TOGGLE_VISIBLE_PLAYERS_IN_OBSERVATION
 
         for i in range(N):
             dx = float(dir_x[i])
@@ -322,5 +323,5 @@ class GameWorld:
                 ix2, iy2 = int(round(x2)), int(round(y2))
                 obs_np[max(0, iy1):min(84, iy2), max(0, ix1):min(84, ix2)] = colors[i]
         
-        # Image.fromarray(obs_np.astype(np.uint8)).save("map_debug.png")
+        # Image.fromarray(obs_np.astype(np.uint8)).save(f"map_debug_{player_idx}.png")
         return obs_np

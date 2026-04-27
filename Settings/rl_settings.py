@@ -1,11 +1,11 @@
 # True for agent control, False for human
 RL_CONTROL = {
     "player_one": True,
-    "player_two": False,
+    "player_two": True,
 }
 
-TRAINING_MODE = False
-LOAD_MODEL = True
+TRAINING_MODE = True
+LOAD_MODEL = False
 
 # How many steps for a log to be pushed. Only affects qvals and distributions logging
 LOG_INTERVAL = 100
@@ -25,9 +25,11 @@ ACTION_SPACE_SIZE = len(ACTIONS)
 MINI_BATCH = 128
 # Highly dependent on your ram, but at least 100k is recommended
 MEMORY_SIZE = 200000
+# how many experiences to collect before we start learning
+EXPERIENCES_TO_COLLECT = MEMORY_SIZE / 4
 
-EXPERIENCE_COLLECTION_EPISODES = 500
-MAX_EPISODES = 50001
+SINGLE_AGENT_TRAINING_EPISODES = 30000
+MAX_EPISODES = 200001
 
 # every this amount of actions, optimize the policy network
 NETWORK_LEARN_RATE = 128
@@ -43,11 +45,11 @@ MIN_EPSILON = 0.1
 FRAMES_PER_STEP = 4
 STEPS_PER_ACTION = 4
 
-LIDAR_RAY_COUNT = 16
+LIDAR_RAY_COUNT = 32
 LIDAR_MAX_DISTANCE = 400
 
 REWARD_FOR_WINNING = 1
-REWARD_FOR_EXISTING = 0.0001
+REWARD_FOR_EXISTING = 0.001
 REWARD_FOR_PROXIMITY = 0
 PENALTY_FOR_RUNNING_INTO_WALL = 0.0001
 # TODO: make a penalty for not moving for a long period of time
@@ -63,7 +65,7 @@ IMAGE_HEIGHT = 84
 CLASSIC_MODE = False
 # true - other player will always be visible
 # false - direct LOS between players has to be made to appear on the map
-TOGGLE_VISIBLE_PLAYERS_IN_OBSERVATION = False
+TOGGLE_VISIBLE_PLAYERS_IN_OBSERVATION = True
 
 USE_DOUBLE_DQN = True
 USE_DUELING_DQN = True

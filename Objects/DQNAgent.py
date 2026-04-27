@@ -161,6 +161,7 @@ class DQNAgent:
         self.q_logger = q_logger
         self.dist_logger = dist_logger
         self.loss_accumulator = []
+        self.learning_enabled = True
 
         self.stepCounter = 0
 
@@ -255,17 +256,6 @@ class DQNAgent:
             # then pick the highest evaluated one
             action_idx = torch.argmax(q_values, dim=1).item()
 
-        # TODO: i should probably make a debug object atp
-        if hasattr(self, 'debug_counter'):
-            self.debug_counter += 1
-        else:
-            self.debug_counter = 0
-            
-        if global_settings.DEBUG_MODE and self.debug_counter % 60 == 0:
-            print(f"Agent state shape: {state.shape}")
-            print(f"Q-values: {q_values.cpu().numpy()[0]}")
-            print(f"Selected action: {rl_settings.ACTIONS[action_idx]} (index: {action_idx})")
-        
         return action_idx
     
     def categorical_projection(self, next_probs, rewards, terminations):
@@ -296,6 +286,8 @@ class DQNAgent:
 
     # Optimize policy network
     def optimize(self, mini_batch, policy_dqn, target_dqn):
+        if not self.learning_enabled:
+            return
         
         if rl_settings.USE_NOISY_NETS:
             policy_dqn.reset_noise()

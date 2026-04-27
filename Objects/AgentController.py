@@ -150,12 +150,13 @@ class AgentController:
         
             
         # reduce the epsilon if we need to
-        if not rl_settings.USE_NOISY_NETS:
-            if not rl_settings.TRAINING_MODE or states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES:
-                states.epsilon = max(states.epsilon * rl_settings.EPSILON_DECAY, rl_settings.MIN_EPSILON)
-
+        for agentName in self.agentNames:
+            agent = self.agents[agentName]
+            if not rl_settings.USE_NOISY_NETS and agent.learning_enabled:
+                states.epsilon[agentName] = max(states.epsilon[agentName] * rl_settings.EPSILON_DECAY, rl_settings.MIN_EPSILON)
+        
         # Every few steps update the models   
-        if rl_settings.TRAINING_MODE and states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES and self.episodeStep % rl_settings.NETWORK_LEARN_RATE == 0:
+        if rl_settings.TRAINING_MODE and self.episodeStep % rl_settings.NETWORK_LEARN_RATE == 0:
             self.update_models()
 
         
@@ -165,7 +166,7 @@ class AgentController:
         for agentName in self.agentNames:
             agent = self.agents[agentName]
             # If enough experience has been collected
-            if len(agent.memory) > rl_settings.MINI_BATCH: 
+            if agent.learning_enabled and len(agent.memory) > rl_settings.MINI_BATCH: 
                 # This works the same no matter what the experience collection method is
                 mini_batch = agent.memory.sample(rl_settings.MINI_BATCH)
                 agent.optimize(mini_batch, agent.policy_network, agent.target_network)
@@ -193,7 +194,7 @@ class AgentController:
 
         # If it's the first few episodes, collect dummy data to lessen the overfitting 
         # to the begginging of learning process
-        if states.episodeCount < rl_settings.EXPERIENCE_COLLECTION_EPISODES:
+        if len(self.agents[agentName].memory) < rl_settings.MINI_BATCH * 2:
             nextAgentAction = self.pick_random_action()
             isRandom = True
             return self.finalize_action(agentName, nextAgentAction, isRandom)
@@ -221,7 +222,7 @@ class AgentController:
             agentName, 
             states.episodeCount, 
             states.episodeFrame, 
-            states.epsilon if not rl_settings.USE_NOISY_NETS else 0.0, 
+            states.epsilon[agentName] if not rl_settings.USE_NOISY_NETS else 0.0, 
             isRandom, 
             rl_settings.ACTIONS[action], 
             states.episodeReward[agentName]
@@ -243,8 +244,10 @@ class AgentController:
 
 
             agent = self.agents[agentName]
-            if states.episodeCount % rl_settings.NETWORK_SYNC_RATE == 0 and len(agent.memory) > rl_settings.MINI_BATCH and rl_settings.TRAINING_MODE and states.episodeCount > rl_settings.EXPERIENCE_COLLECTION_EPISODES: 
-                agent.target_network.load_state_dict(agent.policy_network.state_dict())
+            if agent.learning_enabled and rl_settings.TRAINING_MODE:
+                if states.episodeCount % rl_settings.NETWORK_SYNC_RATE == 0:
+                    if len(agent.memory) > rl_settings.MINI_BATCH:
+                        agent.target_network.load_state_dict(agent.policy_network.state_dict())
 
     def save_experience(self, agentName, lastState, action, currentState, reward, terminated):
 
