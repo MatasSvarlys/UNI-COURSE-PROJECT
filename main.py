@@ -51,7 +51,7 @@ try:
 
             states.framesLeft -= 1
             states.episodeFrame += 1
-            if states.framesLeft <= 0:
+            if states.framesLeft <= 0 or states.episodeFrame >= 10000:
                 states.isTerminated = True
             
             if states.episodeCount >= rl_settings.MAX_EPISODES:
@@ -80,8 +80,11 @@ try:
 
             # For the first frame in a new map, fill the history with the same frame to avoid 
             # leaking from last map and passing a non-full history
-            for _, agentName in enumerate(rl_settings.RL_CONTROL.keys()):
+            for idx, agentName in enumerate(rl_settings.RL_CONTROL.keys()):
                 if rl_settings.RL_CONTROL[agentName]:
+                    if states.episodeCount < rl_settings.SINGLE_AGENT_TRAINING_EPISODES:
+                        AgentController.agents[agentName].learning_enabled = (idx == 0)
+
                     if len(AgentController.frameHistory[agentName]) == 0:
                         for _ in range(rl_settings.STEPS_PER_ACTION):
                             AgentController.frameHistory[agentName].append(statesForAgents[agentName])

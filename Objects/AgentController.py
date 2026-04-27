@@ -182,6 +182,12 @@ class AgentController:
             nextAgentAction = 0
             return self.finalize_action(agentName, 0, isRandom)
         
+        # for the period while the catcher is still learning
+        if not self.agents[agentName].learning_enabled and len(self.agents[agentName].memory) < 1:
+            nextAgentAction = self.pick_random_action()
+            isRandom = True
+            return self.finalize_action(agentName, nextAgentAction, isRandom)
+        
         # If not training, just get the action and move on
         if not rl_settings.TRAINING_MODE:
             # if the model hasnt fully learned change this to 0.01 to see if it moves at all
