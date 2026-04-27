@@ -1,7 +1,9 @@
+from concurrent.futures import ThreadPoolExecutor
 import os
 import random
 import cv2
 from PIL import Image
+from numba import njit
 import pygame
 import numpy as np
 from sympy import rad
@@ -27,6 +29,7 @@ class GameWorld:
         self.players = [self.playerOne, self.playerTwo]
 
         self.rlPlayers = [i for i, (_, v) in enumerate(rl_settings.RL_CONTROL.items()) if v]
+        self.executor = ThreadPoolExecutor(max_workers=len(self.rlPlayers))
 
         # Surfaces for drawing
         self.baseSurface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT), pygame.SRCALPHA)
@@ -43,6 +46,9 @@ class GameWorld:
         self.lidar_num_rays = rl_settings.LIDAR_RAY_COUNT
         self.lidar_ray_angles = [i * 360.0 / self.lidar_num_rays for i in range(self.lidar_num_rays)]
         self.lidar_ray_angles_rad = np.radians(self.lidar_ray_angles)
+        self.dir_x = np.cos(self.lidar_ray_angles_rad)
+        self.dir_y = np.sin(self.lidar_ray_angles_rad)
+
         self.lidar_map_colors = [100, 200, 150] # wall, floor, unknown
 
         # TODO: keep only the memory of players that are being trained
@@ -182,85 +188,54 @@ class GameWorld:
 
 
     def cast_lidar_ray_and_update(self, start_pos, memory, other_player, player_idx):
-        dir_x = np.cos(self.lidar_ray_angles_rad)
-        dir_y = np.sin(self.lidar_ray_angles_rad)
-        
+
         start_gx = start_pos.x / map_settings.TILE_SIZE
         start_gy = start_pos.y / map_settings.TILE_SIZE
         max_grid_dist = rl_settings.LIDAR_MAX_DISTANCE / map_settings.TILE_SIZE
+                
+        wall_dist_grid, hit_wall = numba_raycast(
+                start_gx, start_gy, 
+                self.dir_x, self.dir_y,
+                max_grid_dist, 
+                self.gameMap.blockGrid, 
+                memory, 
+                self.lidar_map_colors[0], 
+                self.lidar_map_colors[1]
+            )
         
-        block_grid = self.gameMap.blockGrid
-        grid_h = self.gameMap.grid_height
-        grid_w = self.gameMap.grid_width
-        wall_color = self.lidar_map_colors[0]
-        floor_color = self.lidar_map_colors[1]
-        
-        N = self.lidar_num_rays
-        wall_dist = np.empty(N, dtype=np.float64)
-        end_x_arr = np.empty(N, dtype=np.float64)
-        end_y_arr = np.empty(N, dtype=np.float64)
-        hit_wall = np.zeros(N, dtype=bool)
-        # If this is toggled to true, we dont need to do the extra clipline check
+        dist_world = wall_dist_grid * map_settings.TILE_SIZE
+        end_x_arr = start_pos.x + self.dir_x * dist_world
+        end_y_arr = start_pos.y + self.dir_y * dist_world
+
         player_seen = rl_settings.TOGGLE_VISIBLE_PLAYERS_IN_OBSERVATION
-
-        for i in range(N):
-            dx = float(dir_x[i])
-            dy = float(dir_y[i])
-
-            map_x = int(start_gx)
-            map_y = int(start_gy)
-
-            delta_x = abs(1.0 / dx) if dx != 0 else 1e30
-            delta_y = abs(1.0 / dy) if dy != 0 else 1e30
-
-            step_x = 1 if dx >= 0 else -1
-            step_y = 1 if dy >= 0 else -1
-
-            side_x = (map_x + 1.0 - start_gx) * delta_x if dx >= 0 else (start_gx - map_x) * delta_x
-            side_y = (map_y + 1.0 - start_gy) * delta_y if dy >= 0 else (start_gy - map_y) * delta_y
-
-            dist = 0.0
-            hit = False
-
-            while dist < max_grid_dist:
-                if side_x < side_y:
-                    dist = side_x
-                    side_x += delta_x
-                    map_x += step_x
-                else:
-                    dist = side_y
-                    side_y += delta_y
-                    map_y += step_y
-
-                if map_x < 0 or map_x >= grid_w or map_y < 0 or map_y >= grid_h:
+        if not player_seen:
+            for i in range(self.lidar_num_rays):
+                if other_player.hitbox.clipline(start_pos, (end_x_arr[i], end_y_arr[i])):
+                    player_seen = True
                     break
-
-                if block_grid[map_y, map_x] == 1:
-                    memory[map_y, map_x] = wall_color
-                    hit = True
-                    break
-                else:
-                    memory[map_y, map_x] = floor_color
-
-            dist = min(dist, max_grid_dist)
-            wall_dist[i] = dist
-            end_x_arr[i] = start_pos.x + dx * dist * map_settings.TILE_SIZE
-            end_y_arr[i] = start_pos.y + dy * dist * map_settings.TILE_SIZE
-            hit_wall[i] = hit
-
-            if not player_seen and other_player.hitbox.clipline(start_pos, (end_x_arr[i], end_y_arr[i])):
-                player_seen = True
-
+        
         self.last_lidar_results[player_idx] = {
             'start': start_pos,
             'end_x': end_x_arr,
             'end_y': end_y_arr,
             'hit_wall': hit_wall,
-            'dist': wall_dist * map_settings.TILE_SIZE
+            'dist': dist_world
         }
 
         return player_seen
     
+    def get_all_agent_observations(self):
+        # Create tasks only for agents controlled by RL
+        futures = {
+            idx: self.executor.submit(self.get_player_observation, idx)
+            for idx in self.rlPlayers
+        }
+        
+        # Collect results as they finish
+        agent_names = list(rl_settings.RL_CONTROL.keys())
+        results = {agent_names[idx]: future.result() for idx, future in futures.items()}
+        return results
+
     def get_state_screenshot(self, width=rl_settings.IMAGE_WIDTH, height=rl_settings.IMAGE_HEIGHT):
 
         self.gameMap.drawMapOntoSurface(self.baseSurface)
@@ -325,3 +300,58 @@ class GameWorld:
         
         # Image.fromarray(obs_np.astype(np.uint8)).save(f"map_debug_{player_idx}.png")
         return obs_np
+    
+@njit
+def numba_raycast(start_gx, start_gy, dir_x, dir_y, max_grid_dist, block_grid, memory, wall_color, floor_color):
+    num_rays = len(dir_x)
+    grid_h, grid_w = block_grid.shape
+    
+    # Results to pass back
+    wall_dist = np.empty(num_rays)
+    end_x_arr = np.empty(num_rays)
+    end_y_arr = np.empty(num_rays)
+    hit_wall = np.zeros(num_rays, dtype=np.bool_)
+
+    for i in range(num_rays):
+        dx, dy = dir_x[i], dir_y[i]
+        map_x, map_y = int(start_gx), int(start_gy)
+
+        delta_x = abs(1.0 / dx) if dx != 0 else 1e30
+        delta_y = abs(1.0 / dy) if dy != 0 else 1e30
+
+        step_x = 1 if dx >= 0 else -1
+        step_y = 1 if dy >= 0 else -1
+
+        side_x = (map_x + 1.0 - start_gx) * delta_x if dx >= 0 else (start_gx - map_x) * delta_x
+        side_y = (map_y + 1.0 - start_gy) * delta_y if dy >= 0 else (start_gy - map_y) * delta_y
+
+        dist = 0.0
+        hit = False
+
+        # THE HEAVY LIFTING: Compiled by Numba
+        while dist < max_grid_dist:
+            if side_x < side_y:
+                dist = side_x
+                side_x += delta_x
+                map_x += step_x
+            else:
+                dist = side_y
+                side_y += delta_y
+                map_y += step_y
+
+            if map_x < 0 or map_x >= grid_w or map_y < 0 or map_y >= grid_h:
+                break
+
+            if block_grid[map_y, map_x] == 1:
+                memory[map_y, map_x] = wall_color
+                hit = True
+                break
+            else:
+                memory[map_y, map_x] = floor_color
+
+        dist = min(dist, max_grid_dist)
+        wall_dist[i] = dist
+        # We return these to update the class later
+        hit_wall[i] = hit
+
+    return wall_dist, hit_wall

@@ -107,12 +107,15 @@ while running:
     gameWorld.update(playerActions)
     
     # 3. Get state for each agent after the map has changed
+    if rl_settings.CLASSIC_MODE:
+        stateScreenshot = gameWorld.get_state_screenshot()
+    else:
+        statesForAgents = gameWorld.get_all_agent_observations()
+    
     for idx, name in enumerate(rl_settings.RL_CONTROL.keys()):
         if rl_settings.RL_CONTROL[name]:
             if rl_settings.CLASSIC_MODE:
-                statesForAgents[name] = gameWorld.get_state_screenshot()
-            else:
-                statesForAgents[name] = gameWorld.get_player_observation(idx)
+                statesForAgents[name] = stateScreenshot
     
             # 3.2 append the current frame to the history
             AgentController.frameHistory[name].append(statesForAgents[name])
@@ -150,7 +153,7 @@ while running:
     if gameWorld.captureOccured:
         gameWorld.reset()
         gameWorld.captureOccured = False
-        states.framesLeft += 50
+        states.framesLeft += rl_settings.FRAME_REWARD_FOR_CATCHING
 
     if states.isTerminated:
         AgentController.post_episode_actions()
