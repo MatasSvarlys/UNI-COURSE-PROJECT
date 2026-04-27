@@ -164,6 +164,7 @@ class DQNAgent:
         self.learning_enabled = True
 
         self.stepCounter = 0
+        self.active_episodes = 0
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         # self.device = torch_directml.device(torch_directml.default_device())

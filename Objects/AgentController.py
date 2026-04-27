@@ -194,7 +194,7 @@ class AgentController:
 
         # If it's the first few episodes, collect dummy data to lessen the overfitting 
         # to the begginging of learning process
-        if len(self.agents[agentName].memory) < rl_settings.MINI_BATCH * 2:
+        if self.agents[agentName].active_episodes < rl_settings.MEMORY_COLLECTION_EPISODES:
             nextAgentAction = self.pick_random_action()
             isRandom = True
             return self.finalize_action(agentName, nextAgentAction, isRandom)
@@ -241,7 +241,9 @@ class AgentController:
                 states.episodeCount, 
                 states.episodeReward[agentName]
             )
-
+            
+            if agent.learning_enabled:
+                agent.active_episodes += 1
 
             agent = self.agents[agentName]
             if agent.learning_enabled and rl_settings.TRAINING_MODE:

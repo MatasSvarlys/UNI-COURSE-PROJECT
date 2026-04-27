@@ -26,7 +26,7 @@ MINI_BATCH = 128
 # Highly dependent on your ram, but at least 100k is recommended
 MEMORY_SIZE = 200000
 # how many experiences to collect before we start learning
-EXPERIENCES_TO_COLLECT = MEMORY_SIZE / 4
+MEMORY_COLLECTION_EPISODES = 100
 
 SINGLE_AGENT_TRAINING_EPISODES = 30000
 MAX_EPISODES = 200001
