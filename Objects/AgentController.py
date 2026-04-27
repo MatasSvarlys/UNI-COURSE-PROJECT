@@ -241,11 +241,11 @@ class AgentController:
                 states.episodeCount, 
                 states.episodeReward[agentName]
             )
-            
+
+            agent = self.agents[agentName]
             if agent.learning_enabled:
                 agent.active_episodes += 1
 
-            agent = self.agents[agentName]
             if agent.learning_enabled and rl_settings.TRAINING_MODE:
                 if states.episodeCount % rl_settings.NETWORK_SYNC_RATE == 0:
                     if len(agent.memory) > rl_settings.MINI_BATCH:

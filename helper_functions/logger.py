@@ -25,21 +25,7 @@ def logging_worker(agent_queue, action_log_file, stop_event):
     
     def dispatch_record(record):
         if ".loss" in record.name:
-            
-            agent_id = record.name 
-            if agent_id not in loss_buffers:
-                loss_buffers[agent_id] = []
-            
-            loss_buffers[agent_id].append(float(record.msg))
-            
-            if len(loss_buffers[agent_id]) >= 10:
-                avg = sum(loss_buffers[agent_id]) / 10
-                
-                # Use our styling function
-                record.msg = format_loss_log(avg)
-                loss_handler.handle(record)
-                loss_buffers[agent_id] = []
-            
+            loss_handler.handle(record)
         elif ".qval" in record.name:
             qval_handler.handle(record)
         elif ".dist" in record.name:
@@ -75,8 +61,9 @@ def log_q_values(logger, episode, frame, q_array):
     log_msg = f"episode: {episode}, frame: {frame}, q-values: {q_str}"
     logger.info(log_msg)
 
-def format_loss_log(avg_loss):
-    return f"{avg_loss:.10f}"
+def log_loss(logger, loss_value):
+    log_msg = f"{loss_value:.6f}"
+    logger.info(log_msg)
 
 def log_distribution(logger, episode, frame, dist_array):
     # Just logging the first action's distribution as a sample

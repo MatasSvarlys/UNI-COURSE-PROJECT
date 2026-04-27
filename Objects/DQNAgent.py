@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from Objects.PrioritizedExperienceReplay import PrioritizedReplayMemory
 from Settings import global_settings, rl_settings
 from Objects.ExperienceReplay import ReplayMemory
-from helper_functions.logger import log_distribution, log_q_values
+from helper_functions.logger import log_distribution, log_loss, log_q_values
 from Objects import States
 
 class CategoricalHead(nn.Module):
@@ -232,30 +232,31 @@ class DQNAgent:
     
         # Image.fromarray(side_by_side).save("debug_state.png")
 
-        if rl_settings.USE_NOISY_NETS:
-            self.policy_network.reset_noise()
+        # if rl_settings.USE_NOISY_NETS:
+        #     self.policy_network.reset_noise()
 
         with torch.no_grad():
             # pass the tensor into the network and get its calculated q values
             out = self.policy_network(state_tensor)
             q_values = self.get_q_values(out)
-            if self.stepCounter % rl_settings.LOG_INTERVAL == 0:
-                q_vals_np = q_values.cpu().numpy()[0]
-                
-                if not rl_settings.USE_DISTRIBUTIONAL_DQN:
-                    log_q_values(self.q_logger, 
-                                 States.episodeCount, 
-                                 States.episodeFrame, 
-                                 q_vals_np)
-                else:
-                    # Distributions are huge (51 atoms * actions). 
-                    # This is very heavy to log every frame.
-                    log_distribution(self.dist_logger, 
-                                     States.episodeCount, 
-                                     States.episodeFrame, 
-                                     out.cpu().numpy()[0])
             # then pick the highest evaluated one
             action_idx = torch.argmax(q_values, dim=1).item()
+
+        if self.stepCounter % rl_settings.LOG_INTERVAL == 0:
+            q_vals_np = q_values.cpu().numpy()[0]
+            
+            if not rl_settings.USE_DISTRIBUTIONAL_DQN:
+                log_q_values(self.q_logger, 
+                                States.episodeCount, 
+                                States.episodeFrame, 
+                                q_vals_np)
+            else:
+                # Distributions are huge (51 atoms * actions). 
+                # This is very heavy to log every frame.
+                log_distribution(self.dist_logger, 
+                                    States.episodeCount, 
+                                    States.episodeFrame, 
+                                    out.cpu().numpy()[0])
 
         return action_idx
     
@@ -375,8 +376,12 @@ class DQNAgent:
 
         loss = (loss_unweighted * is_weights).mean()        
         
-        self.loss_logger.info(loss.item())
-        
+        self.loss_accumulator.append(loss.detach())
+        if len(self.loss_accumulator) >= 100:
+            # Mean and item() only once every 100 updates
+            avg_loss = torch.stack(self.loss_accumulator).mean().item()
+            log_loss(self.loss_logger, avg_loss)
+            self.loss_accumulator = []
         # Optimize the model
         self.optimizer.zero_grad()  # Clear gradients
         loss.backward()             # Compute gradients
