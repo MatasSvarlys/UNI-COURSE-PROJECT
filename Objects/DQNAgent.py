@@ -242,9 +242,9 @@ class DQNAgent:
             # then pick the highest evaluated one
             q_values_cpu = q_values.cpu()
             action_idx = int(q_values_cpu.argmax(dim=1).numpy()[0])
-            
+
         if self.stepCounter % rl_settings.LOG_INTERVAL == 0:
-            q_vals_np = q_values.cpu().numpy()[0]
+            q_vals_np = q_values_cpu.numpy()[0]
             
             if not rl_settings.USE_DISTRIBUTIONAL_DQN:
                 log_q_values(self.q_logger, 
