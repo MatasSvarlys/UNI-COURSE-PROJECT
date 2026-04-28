@@ -108,7 +108,7 @@ class GameWorld:
             if player.isSeeker:
                 player.reward += rl_settings.REWARD_FOR_WINNING
             else:
-                player.reward -= rl_settings.REWARD_FOR_WINNING
+                player.reward += rl_settings.PENALTY_FOR_LOOSING
 
     def update(self, playerActions):
 
@@ -125,7 +125,7 @@ class GameWorld:
         for playerID in self.rlPlayers:
             player = self.players[playerID]
             if player.isSeeker:
-                player.reward += -rl_settings.REWARD_FOR_EXISTING
+                player.reward += rl_settings.PENALTY_FOR_EXISTING
             else:
                 player.reward += rl_settings.REWARD_FOR_EXISTING
         
