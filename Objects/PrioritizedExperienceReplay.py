@@ -33,10 +33,12 @@ class PrioritizedReplayMemory:
         # Find current max priority in the leaves to ensure new data gets sampled at least once
         max_p = np.max(self.tree[-self.capacity:])
         if max_p <= 0:
-            max_p = 1.0 # Initial priority for the very first entry
+            # Initial priority for the very first entry
+            max_p = 1.0 
 
         # Calculate the leaf index in the 'tree' array
-        # The data at self.data[0] is mapped to tree[capacity - 1]
+        # This is done because the first capacity-1 nodes in the tree are internal nodes 
+        # for calculations, and the last capacity nodes are the actual leaf nodes 
         tree_idx = self.ptr + self.capacity - 1
         self.data[self.ptr] = data
 

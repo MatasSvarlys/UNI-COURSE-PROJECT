@@ -182,11 +182,6 @@ class AgentController:
             nextAgentAction = 0
             return self.finalize_action(agentName, 0, isRandom)
         
-        # for the period while the catcher is still learning
-        if not self.agents[agentName].learning_enabled and len(self.agents[agentName].memory) < 1:
-            nextAgentAction = self.pick_random_action()
-            isRandom = True
-            return self.finalize_action(agentName, nextAgentAction, isRandom)
         
         # If not training, just get the action and move on
         if not rl_settings.TRAINING_MODE:
@@ -198,6 +193,12 @@ class AgentController:
                 nextAgentAction = self.agents[agentName].step(stackedState) 
             return self.finalize_action(agentName, nextAgentAction, isRandom)
 
+        # for the period while the catcher is still learning
+        if not self.agents[agentName].learning_enabled and len(self.agents[agentName].memory) < 1:
+            nextAgentAction = self.pick_random_action()
+            isRandom = True
+            return self.finalize_action(agentName, nextAgentAction, isRandom)
+        
         # If it's the first few episodes, collect dummy data to lessen the overfitting 
         # to the begginging of learning process
         if self.agents[agentName].active_episodes < rl_settings.MEMORY_COLLECTION_EPISODES:

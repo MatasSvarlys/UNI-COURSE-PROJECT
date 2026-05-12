@@ -44,7 +44,7 @@ class Player:
         # self.isSeeker = not self.isSeeker
 
     # Update the player state
-    def update(self, action, collisionRects, dt=1.0):
+    def update(self, action, collisionRects):
         
         # Movement vector from last frame
         last_movement = self.movementVector
@@ -53,10 +53,10 @@ class Player:
         input_vector = self.action_to_movement_vector(action, last_movement)
 
         # Apply gravity
-        input_vector.y += settings.PLAYER_GRAVITY * dt
+        input_vector.y += settings.PLAYER_GRAVITY
 
         # Handle max speed constraints and apply friction
-        movement_vector = self.handle_constraints_and_friction(input_vector, dt)
+        movement_vector = self.handle_constraints_and_friction(input_vector)
 
         # If theres a wall in the way, move back to the edge of the wall
         movementVector, collisionDictionary = self.handle_collisions(collisionRects, movement_vector)
@@ -138,10 +138,8 @@ class Player:
 
         return movementVector, collisionDictionary
                     
-    def handle_constraints_and_friction(self, movementVector, dt):
+    def handle_constraints_and_friction(self, movementVector):
        
-        # time_scale = dt * 60.0
-
         # Handle max fall speed
         if movementVector.y > settings.PLAYER_MAX_FSPEED:
             movementVector.y = settings.PLAYER_MAX_FSPEED
@@ -155,11 +153,17 @@ class Player:
             movementVector.x = 0
 
         # TODO: make the max speed not hard capped
-        if movementVector.x > settings.PLAYER_MAX_SPEED:
-            movementVector.x = settings.PLAYER_MAX_SPEED
-        elif movementVector.x < -settings.PLAYER_MAX_SPEED:
-            movementVector.x = -settings.PLAYER_MAX_SPEED
-        
+        if self.isSeeker:
+            if movementVector.x > settings.PLAYER_MAX_SPEED * 1.1:
+                movementVector.x = settings.PLAYER_MAX_SPEED * 1.1
+            elif movementVector.x < -settings.PLAYER_MAX_SPEED * 1.1:
+                movementVector.x = -settings.PLAYER_MAX_SPEED * 1.1
+        else:
+            if movementVector.x > settings.PLAYER_MAX_SPEED:
+                movementVector.x = settings.PLAYER_MAX_SPEED
+            elif movementVector.x < -settings.PLAYER_MAX_SPEED:
+                movementVector.x = -settings.PLAYER_MAX_SPEED
+
         return movementVector
 
     def action_to_movement_vector(self, action, lastMovement):
